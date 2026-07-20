@@ -1,0 +1,26 @@
+[
+  {
+    "external_id": "TKT-001",
+    "title": "[payments-api] checkout lento para todos los usuarios",
+    "description": "latencia p99 subio a 4200ms en checkout desde las 14:10",
+    "service": "payments-api",
+    "severity": "sev2",
+    "source": "seed"
+  },
+  {
+    "external_id": "TKT-002",
+    "title": "[auth-service] usuarios reportan sesiones que se caen",
+    "description": "picos de timeout al validar JWT (3100ms) intermitentes",
+    "service": "auth-service",
+    "severity": "sev3",
+    "source": "seed"
+  },
+  {
+    "external_id": "TKT-003",
+    "title": "[search-indexer] resultados desactualizados",
+    "description": "el indice quedo 12000 documentos atras del primario",
+    "service": "search-indexer",
+    "severity": "sev2",
+    "source": "seed"
+  }
+]
