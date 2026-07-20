@@ -1,5 +1,7 @@
 import logging
 
+from pydantic import ValidationError
+
 from app.agent.tools import SUBMIT_DIAGNOSIS, TOOLS, run_tool
 from app.config import settings
 from app.models import Diagnosis, EvidenceStep, HandleResponse, RelevantIncident
@@ -69,7 +71,17 @@ def handle(ticket: dict) -> HandleResponse:
         results: list[ToolResult] = []
         for use in turn.tool_uses:
             if use.name == SUBMIT_DIAGNOSIS.name:
-                diagnosis = Diagnosis.model_validate(use.args)
+                try:
+                    diagnosis = Diagnosis.model_validate(use.args)
+                except ValidationError as exc:
+                    log.warning("submit_diagnosis con argumentos invalidos: %s", exc)
+                    returned = {"error": str(exc)}
+                    evidence.append(
+                        EvidenceStep(
+                            tool=use.name, via="error", args=use.args, returned=returned
+                        )
+                    )
+                    results.append(ToolResult(id=use.id, content=returned))
                 continue
             try:
                 returned, via = run_tool(use.name, use.args)

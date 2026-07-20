@@ -312,13 +312,29 @@ npm run dev                   # http://localhost:5173 (proxea /api → :8000)
 | `LLM_PROVIDER` | no | `bedrock` | `bedrock` \| `anthropic` |
 | `EMBEDDING_PROVIDER` | no | `bedrock` | Debe producir 1024 dims (`VECTOR(1024)`) |
 | `AWS_REGION` | si `bedrock` | `us-east-1` | Región con acceso a Bedrock habilitado |
-| `BEDROCK_MODEL_ID` | no | `anthropic.claude-sonnet-4-5-20250929-v1:0` | Modelo vía Converse API |
-| `BEDROCK_EMBEDDING_MODEL_ID` | no | `amazon.titan-embed-text-v2:0` | Titan v2, 1024 dims |
+| `BEDROCK_MODEL_ID` | no | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | Modelo vía Converse API. **Inference profile, no el ID desnudo** (ver abajo) |
+| `BEDROCK_EMBEDDING_MODEL_ID` | no | `amazon.titan-embed-text-v2:0` | Titan v2, 1024 dims. ID desnudo: los modelos de embedding no usan inference profiles |
 | `ANTHROPIC_API_KEY` | si `anthropic` | — | Solo para el swap de proveedor |
 | `MOCK_SEED` | no | — | Semilla del generador de tickets → demo reproducible (§9) |
 
 Credenciales AWS por la cadena estándar de boto3 (perfil, env vars o rol) — no se
 definen variables propias.
+
+**El prefijo del model ID tiene que acompañar a `AWS_REGION`.** Claude Sonnet 4.5 no
+admite invocación on-demand con el ID desnudo (`In-Region ❌` en todas las regiones): hay
+que usar un inference profile.
+
+| Región | Prefijo |
+|--------|---------|
+| `us-*`, `ca-central-1` | `us.` |
+| `eu-*` | `eu.` |
+| `ap-southeast-2/4/6` | `au.` |
+| `ap-northeast-1/3` | `jp.` |
+| cualquier región comercial | `global.` |
+
+Regiones sin perfil geo (`ap-south-1`, `ap-southeast-1`, `sa-east-1`, `me-*`) solo pueden
+usar `global.`. La política IAM debe permitir `bedrock:InvokeModel` **sobre el inference
+profile**, no sobre el foundation model.
 
 ### Cambiar de modelo de IA (agnóstico)
 ```
