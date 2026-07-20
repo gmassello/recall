@@ -111,12 +111,18 @@ IA: LLMProvider + EmbeddingProvider → default Bedrock (Claude + Titan)
 
 ## 4. Modelo de datos (CockroachDB)
 
-Requiere **CockroachDB v25.2+** (`CREATE VECTOR INDEX`). En v25.2 el índice vectorial
-está detrás de un feature flag:
+Requiere **CockroachDB v25.3+**: el índice se declara con el opclass `vector_cosine_ops`
+para que acelere el operador `<=>` que usa el recall, y ese opclass no existe antes de
+v25.3 (en v25.2 solo se acelera la distancia L2 `<->`).
 
-```sql
-SET CLUSTER SETTING feature.vector_index.enabled = true;
-```
+Dos limitaciones del índice vectorial que condicionan cómo se escribe la query de recall:
+
+- El opclass tiene que coincidir con el operador de la query. El default es
+  `vector_l2_ops`, que solo acelera `<->`.
+- *"Index acceleration with filters is only supported if the filters match prefix
+  columns."* Por eso la query de recall no lleva `WHERE`: los filtros de vigencia
+  (`valid_until`, `superseded_by`) y de servicio se aplican en Python sobre los
+  candidatos recuperados. Meterlos en el `WHERE` desactivaría el índice.
 
 ```sql
 -- severity : 'sev1' | 'sev2' | 'sev3' | 'sev4'

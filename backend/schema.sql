@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS incidents (
     embedding     VECTOR(1024)
 );
 
-CREATE VECTOR INDEX IF NOT EXISTS incidents_embedding_idx ON incidents (embedding);
+CREATE VECTOR INDEX IF NOT EXISTS incidents_embedding_idx
+    ON incidents (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS incidents_service_idx ON incidents (service, created_at);
 
 CREATE TABLE IF NOT EXISTS active_incidents (

@@ -17,6 +17,8 @@ MEMORY_COLUMNS = (
     + ", resolved_at, valid_until, superseded_by::STRING AS superseded_by, source"
 )
 
+FEEDBACK_COLUMNS = "id::STRING AS incident_id, quality_score, times_helpful"
+
 
 def age_penalty(created_at: datetime, now: datetime | None = None) -> float:
     now = now or datetime.now(timezone.utc)
@@ -34,24 +36,16 @@ def rank_score(distance: float, quality_score: float, created_at: datetime) -> f
 
 def _recall_sql(embedding: list[float], service: str | None) -> tuple[str, list]:
     vector = to_vector_literal(embedding)
-    params: list = [vector]
-    service_filter = ""
-    if service:
-        service_filter = "AND service = %s"
-        params.append(service)
-    params.append(settings.recall_candidates)
+    multiplier = settings.recall_service_multiplier if service else 1
+    limit = settings.recall_candidates * multiplier
     sql = f"""
-        SELECT {RECALL_COLUMNS},
+        SELECT {MEMORY_COLUMNS},
                embedding {DISTANCE_OP} %s::VECTOR AS distance
         FROM incidents
-        WHERE (valid_until IS NULL OR valid_until > now())
-          AND superseded_by IS NULL
-          AND embedding IS NOT NULL
-          {service_filter}
-        ORDER BY distance
+        ORDER BY embedding {DISTANCE_OP} %s::VECTOR
         LIMIT %s
     """
-    return sql, params
+    return sql, [vector, vector, limit]
 
 
 def _read(sql: str, params: list) -> tuple[list[dict], str]:
@@ -68,17 +62,36 @@ def _as_datetime(value) -> datetime:
     return datetime.fromisoformat(str(value))
 
 
+CURRENT_SQL_FILTER = (
+    "(valid_until IS NULL OR valid_until > now()) AND superseded_by IS NULL"
+)
+
+
+def is_current(row: dict, now: datetime) -> bool:
+    if row.get("distance") is None or row.get("superseded_by"):
+        return False
+    valid_until = row.get("valid_until")
+    return valid_until is None or _as_datetime(valid_until) > now
+
+
 def recall(symptom: str, service: str | None = None) -> tuple[list[dict], str]:
     embedding = get_embedder().embed(symptom)
     rows, via = _read(*_recall_sql(embedding, service))
+    now = datetime.now(timezone.utc)
 
+    hits = []
     for row in rows:
+        if not is_current(row, now):
+            continue
+        if service and row.get("service") != service:
+            continue
         row["created_at"] = _as_datetime(row["created_at"])
         row["distance"] = float(row["distance"])
         row["quality_score"] = float(row["quality_score"] or 0.0)
         row["score"] = rank_score(row["distance"], row["quality_score"], row["created_at"])
+        hits.append(row)
 
-    top = sorted(rows, key=lambda r: r["score"])[: settings.recall_top_k]
+    top = sorted(hits, key=lambda r: r["score"])[: settings.recall_top_k]
     if top:
         _cite([row["id"] for row in top])
     return top, via
@@ -107,8 +120,7 @@ def query_incidents(
         SELECT {RECALL_COLUMNS}
         FROM incidents
         WHERE {" AND ".join(conditions)}
-          AND (valid_until IS NULL OR valid_until > now())
-          AND superseded_by IS NULL
+          AND {CURRENT_SQL_FILTER}
         ORDER BY created_at DESC
         LIMIT %s
     """
@@ -163,12 +175,12 @@ def store_incident(
 def apply_feedback(incident_id: str, helpful: bool) -> dict | None:
     delta = settings.feedback_up if helpful else -settings.feedback_down
     return fetch_one(
-        """
+        f"""
         UPDATE incidents
         SET quality_score = GREATEST(-1.0, LEAST(1.0, quality_score + %s)),
             times_helpful = times_helpful + %s
         WHERE id = %s::UUID
-        RETURNING id::STRING AS id, quality_score, times_helpful
+        RETURNING {FEEDBACK_COLUMNS}
         """,
         (delta, 1 if helpful else 0, incident_id),
     )

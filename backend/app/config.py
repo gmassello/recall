@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     embedding_dims: int = 1024
     recall_candidates: int = 20
     recall_top_k: int = 5
+    recall_service_multiplier: int = 4
     w_quality: float = 0.15
     w_age: float = 0.10
     feedback_up: float = 0.10
