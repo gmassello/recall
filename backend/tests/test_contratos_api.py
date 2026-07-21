@@ -4,9 +4,10 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
-from app import db
+from app import db, tickets
+from app.config import Settings
 from app.models import Diagnosis, GeneratedTicket
-from app.tickets import MockTicketSource, TicketSource
+from app.tickets import MockTicketSource, TicketGenerator, TicketSource
 
 FILA = {
     "id": "t1",
@@ -50,6 +51,34 @@ def test_confidence_fuera_de_rango_se_rechaza(valor):
 
 def test_confidence_en_rango_se_acepta():
     assert Diagnosis(root_cause="x", confidence=1.0).confidence == 1.0
+
+
+@pytest.mark.parametrize(
+    "valor,esperado",
+    [
+        ("http://localhost:5173", ["http://localhost:5173"]),
+        ("https://a.com, https://b.com", ["https://a.com", "https://b.com"]),
+        ("https://a.com,,", ["https://a.com"]),
+    ],
+    ids=["uno", "varios-con-espacios", "descarta-vacios"],
+)
+def test_los_origenes_de_cors_se_parsean_de_la_env(valor, esperado):
+    settings = Settings(database_url="postgresql://x", cors_origins=valor)
+
+    assert settings.cors_origin_list == esperado
+
+
+def test_el_reimport_actualiza_los_campos_del_origen(monkeypatch):
+    capturado = {}
+    monkeypatch.setattr(
+        tickets, "fetch_one", lambda sql, params: capturado.setdefault("sql", sql)
+    )
+
+    MockTicketSource().ingest(TicketGenerator(seed=1).generate())
+
+    for campo in ("title", "description", "service", "severity"):
+        assert f"{campo} = excluded.{campo}" in capturado["sql"]
+    assert "status = excluded" not in capturado["sql"]
 
 
 def test_el_schema_se_manda_entero_en_un_solo_execute(monkeypatch):

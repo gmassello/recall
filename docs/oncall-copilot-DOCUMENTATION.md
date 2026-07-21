@@ -119,9 +119,20 @@ Dos limitaciones del índice vectorial que condicionan cómo se escribe la query
 - El opclass tiene que coincidir con el operador de la query. El default es
   `vector_l2_ops`, que solo acelera `<->`.
 - *"Index acceleration with filters is only supported if the filters match prefix
-  columns."* Por eso la query de recall no lleva `WHERE`: los filtros de vigencia
-  (`valid_until`, `superseded_by`) y de servicio se aplican en Python sobre los
-  candidatos recuperados. Meterlos en el `WHERE` desactivaría el índice.
+  columns."* Por eso el recall tiene dos caminos:
+  - **Sin `service`** (el caso común): la query no lleva `WHERE` y el índice acelera.
+    Los filtros de vigencia (`valid_until`, `superseded_by`) se aplican en Python sobre
+    los candidatos recuperados; meterlos en el `WHERE` desactivaría el índice.
+  - **Con `service`**: el servicio no es columna prefijo del índice vectorial, así que
+    la aceleración no aplica de todos modos. La query filtra en SQL
+    (`WHERE service = %s AND <vigencia>`) y ordena por distancia exacta, acotada por
+    `incidents_service_idx`. Se cambia aceleración por exactitud a propósito: filtrar
+    en Python sobre un top-N global puede omitir incidentes del servicio que rankeen
+    por debajo del corte, aunque sean los únicos que existen.
+
+  El techo del camino con `service` es que calcula distancia sobre todas las filas de ese
+  servicio. A la escala del proyecto es irrelevante; si un servicio concentrara mucho
+  volumen habría que volver a un esquema aproximado.
 
 ```sql
 -- severity : 'sev1' | 'sev2' | 'sev3' | 'sev4'

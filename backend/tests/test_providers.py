@@ -1,6 +1,10 @@
 import json
+import types
 
-from app.providers.anthropic_provider import _to_anthropic_message
+import pytest
+
+from app.providers import anthropic_provider
+from app.providers.anthropic_provider import AnthropicProvider, _to_anthropic_message
 from app.providers.bedrock import _to_bedrock_message
 from app.providers.base import Message, ToolResult
 
@@ -40,6 +44,25 @@ def test_el_error_viaja_marcado_en_anthropic():
     bloque = _to_anthropic_message(message)["content"][0]
 
     assert bloque["is_error"] is True
+
+
+@pytest.mark.parametrize(
+    "stop_reason,esperado",
+    [("max_tokens", True), ("tool_use", False)],
+)
+def test_anthropic_tambien_reporta_el_truncado_en_el_turno(
+    monkeypatch, stop_reason, esperado
+):
+    respuesta = types.SimpleNamespace(stop_reason=stop_reason, content=[])
+    cliente = types.SimpleNamespace(
+        messages=types.SimpleNamespace(create=lambda **kw: respuesta)
+    )
+    monkeypatch.setattr(anthropic_provider.settings, "anthropic_api_key", "k")
+    monkeypatch.setattr(anthropic_provider.anthropic, "Anthropic", lambda **kw: cliente)
+
+    turn = AnthropicProvider().converse("system", [Message(role="user", text="x")], [])
+
+    assert turn.truncated is esperado
 
 
 def test_el_error_viaja_como_status_en_bedrock():

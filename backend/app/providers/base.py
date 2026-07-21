@@ -35,6 +35,7 @@ class Message:
 class Turn:
     text: str = ""
     tool_uses: list[ToolUse] = field(default_factory=list)
+    truncated: bool = False
 
 
 class LLMProvider(Protocol):

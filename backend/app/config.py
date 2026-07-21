@@ -14,14 +14,20 @@ class Settings(BaseSettings):
     bedrock_embedding_model_id: str = "amazon.titan-embed-text-v2:0"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-5-20250929"
+    max_tokens: int = 2048
 
     cockroach_mcp_url: str = ""
     cockroach_mcp_api_key: str = ""
 
+    cors_origins: str = "http://localhost:5173"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
     embedding_dims: int = 1024
     recall_candidates: int = 20
     recall_top_k: int = 5
-    recall_service_multiplier: int = 4
     w_quality: float = 0.15
     w_age: float = 0.10
     feedback_up: float = 0.10

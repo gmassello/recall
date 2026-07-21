@@ -77,6 +77,11 @@ def handle(ticket: dict) -> HandleResponse:
 
     for _ in range(settings.agent_max_turns):
         turn = llm.converse(SYSTEM, messages, TOOLS)
+        if turn.truncated:
+            log.warning(
+                "El proveedor trunco el turno en max_tokens=%s: el tool_use puede faltar",
+                settings.max_tokens,
+            )
         if not turn.tool_uses:
             messages.append(
                 Message(role="assistant", text=turn.text or SIN_RESPUESTA)

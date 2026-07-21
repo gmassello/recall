@@ -21,6 +21,10 @@ MEMORY_COLUMNS = (
 
 FEEDBACK_COLUMNS = "id::STRING AS incident_id, quality_score, times_helpful"
 
+CURRENT_SQL_FILTER = (
+    "(valid_until IS NULL OR valid_until > now()) AND superseded_by IS NULL"
+)
+
 
 def age_penalty(created_at: datetime, now: datetime | None = None) -> float:
     now = now or datetime.now(timezone.utc)
@@ -38,16 +42,21 @@ def rank_score(distance: float, quality_score: float, created_at: datetime) -> f
 
 def _recall_sql(embedding: list[float], service: str | None) -> tuple[str, list]:
     vector = to_vector_literal(embedding)
-    multiplier = settings.recall_service_multiplier if service else 1
-    limit = settings.recall_candidates * multiplier
+    distance = f"embedding {DISTANCE_OP} %s{VECTOR_CAST}"
+    where = ""
+    params: list = [vector]
+    if service:
+        where = f"WHERE service = %s AND {CURRENT_SQL_FILTER}"
+        params.append(service)
+    params += [vector, settings.recall_candidates]
     sql = f"""
-        SELECT {MEMORY_COLUMNS},
-               embedding {DISTANCE_OP} %s{VECTOR_CAST} AS distance
+        SELECT {MEMORY_COLUMNS}, {distance} AS distance
         FROM incidents
-        ORDER BY embedding {DISTANCE_OP} %s{VECTOR_CAST}
+        {where}
+        ORDER BY {distance}
         LIMIT %s
     """
-    return sql, [vector, vector, limit]
+    return sql, params
 
 
 def _read(sql: str, params: list) -> tuple[list[dict], str]:
@@ -62,11 +71,6 @@ def _as_datetime(value) -> datetime:
     if isinstance(value, datetime):
         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
     return datetime.fromisoformat(str(value))
-
-
-CURRENT_SQL_FILTER = (
-    "(valid_until IS NULL OR valid_until > now()) AND superseded_by IS NULL"
-)
 
 
 def is_current(row: dict, now: datetime) -> bool:
@@ -84,8 +88,6 @@ def recall(symptom: str, service: str | None = None) -> tuple[list[dict], str]:
     hits = []
     for row in rows:
         if not is_current(row, now):
-            continue
-        if service and row.get("service") != service:
             continue
         row["created_at"] = _as_datetime(row["created_at"])
         row["distance"] = float(row["distance"])

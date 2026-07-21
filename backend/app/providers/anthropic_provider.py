@@ -45,7 +45,7 @@ class AnthropicProvider:
     ) -> Turn:
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=2048,
+            max_tokens=settings.max_tokens,
             system=system,
             messages=[_to_anthropic_message(m) for m in messages],
             tools=[
@@ -57,7 +57,7 @@ class AnthropicProvider:
                 for tool in tools
             ],
         )
-        turn = Turn()
+        turn = Turn(truncated=response.stop_reason == "max_tokens")
         for block in response.content:
             if block.type == "text":
                 turn.text += block.text

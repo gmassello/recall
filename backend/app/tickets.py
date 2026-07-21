@@ -75,7 +75,11 @@ class MockTicketSource:
             f"""
             INSERT INTO tickets (external_id, title, description, service, severity, source)
             VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (external_id) DO UPDATE SET title = excluded.title
+            ON CONFLICT (external_id) DO UPDATE SET
+                title = excluded.title,
+                description = excluded.description,
+                service = excluded.service,
+                severity = excluded.severity
             RETURNING {TICKET_COLUMNS}
             """,
             (

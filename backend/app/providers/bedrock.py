@@ -44,6 +44,7 @@ class BedrockClaudeProvider:
             modelId=self.model_id,
             system=[{"text": system}],
             messages=[_to_bedrock_message(m) for m in messages],
+            inferenceConfig={"maxTokens": settings.max_tokens},
             toolConfig={
                 "tools": [
                     {
@@ -57,7 +58,7 @@ class BedrockClaudeProvider:
                 ]
             },
         )
-        turn = Turn()
+        turn = Turn(truncated=response.get("stopReason") == "max_tokens")
         for block in response["output"]["message"]["content"]:
             if "text" in block:
                 turn.text += block["text"]

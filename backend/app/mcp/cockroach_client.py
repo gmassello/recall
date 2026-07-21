@@ -7,6 +7,8 @@ from app.config import settings
 
 log = logging.getLogger(__name__)
 
+_sql_tool: tuple[str, str] | None = None
+
 
 def is_configured() -> bool:
     return bool(settings.cockroach_mcp_url and settings.cockroach_mcp_api_key)
@@ -43,6 +45,20 @@ def _parse(payload: Any) -> list[dict]:
     raise ValueError("Respuesta del MCP sin filas reconocibles")
 
 
+async def _discover(session) -> tuple[str, str]:
+    global _sql_tool
+    if _sql_tool is None:
+        tools = await session.list_tools()
+        tool = _pick_sql_tool(tools.tools)
+        if tool is None:
+            nombres = ", ".join(t.name for t in tools.tools) or "(ninguna)"
+            raise ValueError(
+                f"El MCP Server no expone una herramienta SQL. Expone: {nombres}"
+            )
+        _sql_tool = (tool.name, _sql_arg(getattr(tool, "inputSchema", None)))
+    return _sql_tool
+
+
 async def _call(sql: str) -> list[dict]:
     from mcp import ClientSession
     from mcp.client.streamable_http import streamablehttp_client
@@ -55,15 +71,8 @@ async def _call(sql: str) -> list[dict]:
     ):
         async with ClientSession(read, write) as session:
             await session.initialize()
-            tools = await session.list_tools()
-            tool = _pick_sql_tool(tools.tools)
-            if tool is None:
-                nombres = ", ".join(t.name for t in tools.tools) or "(ninguna)"
-                raise ValueError(
-                    f"El MCP Server no expone una herramienta SQL. Expone: {nombres}"
-                )
-            arg = _sql_arg(getattr(tool, "inputSchema", None))
-            result = await session.call_tool(tool.name, {arg: sql})
+            nombre, arg = await _discover(session)
+            result = await session.call_tool(nombre, {arg: sql})
             if result.isError:
                 raise ValueError(f"El MCP devolvio error para: {sql[:120]}")
             if result.structuredContent is not None:
@@ -91,4 +100,5 @@ def probe() -> str:
         _run("SELECT 1")
         return "ok"
     except Exception as exc:
-        return f"fallback: {exc}"
+        log.warning("El probe del MCP fallo, se usa psycopg: %s", exc)
+        return "fallback"
