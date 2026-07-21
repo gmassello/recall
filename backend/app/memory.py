@@ -7,6 +7,8 @@ from app.providers.registry import get_embedder
 
 DISTANCE_OP = "<=>"
 
+VECTOR_CAST = f"::VECTOR({settings.embedding_dims})"
+
 RECALL_COLUMNS = """
     id::STRING AS id, title, symptom, root_cause, resolution, service, severity,
     created_at, quality_score, times_cited, times_helpful
@@ -40,9 +42,9 @@ def _recall_sql(embedding: list[float], service: str | None) -> tuple[str, list]
     limit = settings.recall_candidates * multiplier
     sql = f"""
         SELECT {MEMORY_COLUMNS},
-               embedding {DISTANCE_OP} %s::VECTOR AS distance
+               embedding {DISTANCE_OP} %s{VECTOR_CAST} AS distance
         FROM incidents
-        ORDER BY embedding {DISTANCE_OP} %s::VECTOR
+        ORDER BY embedding {DISTANCE_OP} %s{VECTOR_CAST}
         LIMIT %s
     """
     return sql, [vector, vector, limit]
@@ -91,13 +93,12 @@ def recall(symptom: str, service: str | None = None) -> tuple[list[dict], str]:
         row["score"] = rank_score(row["distance"], row["quality_score"], row["created_at"])
         hits.append(row)
 
-    top = sorted(hits, key=lambda r: r["score"])[: settings.recall_top_k]
-    if top:
-        _cite([row["id"] for row in top])
-    return top, via
+    return sorted(hits, key=lambda r: r["score"])[: settings.recall_top_k], via
 
 
-def _cite(incident_ids: list[str]) -> None:
+def cite(incident_ids: list[str]) -> None:
+    if not incident_ids:
+        return
     execute(
         "UPDATE incidents SET times_cited = times_cited + 1 WHERE id = ANY(%s::UUID[])",
         (incident_ids,),
@@ -141,7 +142,7 @@ def store_incident(
 ) -> str:
     embedding = get_embedder().embed(f"{title} {symptom}")
     row = fetch_one(
-        """
+        f"""
         INSERT INTO incidents (
             title, symptom, root_cause, resolution, service, severity,
             source, external_id, embedding, resolved_at,
@@ -149,7 +150,7 @@ def store_incident(
         )
         VALUES (
             %s, %s, %s, %s, %s, %s,
-            %s, %s, %s::VECTOR, %s,
+            %s, %s, %s{VECTOR_CAST}, %s,
             COALESCE(%s::TIMESTAMPTZ, now()), %s::TIMESTAMPTZ
         )
         RETURNING id::STRING AS id

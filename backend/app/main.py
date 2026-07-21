@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import incidents, memory, tickets
+from app.mcp import cockroach_client
 
 app = FastAPI(title="On-call Copilot", version="0.1.0")
 
@@ -19,4 +20,4 @@ app.include_router(memory.router)
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    return {"status": "ok", "mcp": cockroach_client.probe()}

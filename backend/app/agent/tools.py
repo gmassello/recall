@@ -68,6 +68,17 @@ def _summarize(rows: list[dict]) -> list[dict]:
     ]
 
 
+def cite_recalled(evidence: list) -> None:
+    citados = {
+        row["id"]
+        for step in evidence
+        if step.tool == SEARCH_MEMORY.name and isinstance(step.returned, list)
+        for row in step.returned
+        if isinstance(row, dict) and "id" in row
+    }
+    memory.cite(sorted(citados))
+
+
 def run_tool(name: str, args: dict[str, Any]) -> tuple[Any, str]:
     if name == SEARCH_MEMORY.name:
         rows, via = memory.recall(args["symptom"], args.get("service"))

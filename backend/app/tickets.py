@@ -1,5 +1,5 @@
 import random
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from app.config import settings
 from app.db import execute, fetch, fetch_one
@@ -22,12 +22,17 @@ TEMPLATES = [
 ]
 
 
+@runtime_checkable
 class TicketSource(Protocol):
     def list_open(self) -> list[dict]: ...
 
     def get(self, ticket_id: str) -> dict | None: ...
 
     def ingest(self, ticket: TicketCreate) -> dict: ...
+
+    def generate(self, n: int = 1) -> list[dict]: ...
+
+    def set_status(self, ticket_id: str, status: str) -> None: ...
 
 
 class TicketGenerator:

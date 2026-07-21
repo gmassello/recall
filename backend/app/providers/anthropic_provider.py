@@ -1,9 +1,16 @@
+import json
 from typing import Any
 
 import anthropic
 
 from app.config import settings
 from app.providers.base import Message, ToolSpec, ToolUse, Turn
+
+
+def _as_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    return json.dumps(content, ensure_ascii=False, default=str)
 
 
 def _to_anthropic_message(message: Message) -> dict[str, Any]:
@@ -13,7 +20,8 @@ def _to_anthropic_message(message: Message) -> dict[str, Any]:
             {
                 "type": "tool_result",
                 "tool_use_id": result.id,
-                "content": str(result.content),
+                "content": _as_text(result.content),
+                "is_error": result.is_error,
             }
         )
     if message.text:

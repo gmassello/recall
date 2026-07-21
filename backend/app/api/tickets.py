@@ -3,7 +3,7 @@ from fastapi import APIRouter, Query
 from app import tickets
 from app.agent.loop import handle
 from app.api.deps import get_ticket_or_404
-from app.models import HandleResponse, Ticket, TicketCreate
+from app.models import GeneratedTicket, HandleResponse, Ticket, TicketCreate
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -20,7 +20,8 @@ def create_ticket(ticket: TicketCreate) -> dict:
 
 @router.post("/generate", status_code=201)
 def generate_tickets(n: int = Query(1, ge=1, le=20)) -> dict:
-    return {"generated": tickets.source.generate(n)}
+    generados = [GeneratedTicket.from_row(row) for row in tickets.source.generate(n)]
+    return {"generated": generados}
 
 
 @router.get("/{ticket_id}", response_model=Ticket)
@@ -32,4 +33,8 @@ def get_ticket(ticket_id: str) -> dict:
 def handle_ticket(ticket_id: str) -> HandleResponse:
     ticket = get_ticket_or_404(ticket_id)
     tickets.source.set_status(ticket_id, "handling")
-    return handle(ticket)
+    try:
+        return handle(ticket)
+    except Exception:
+        tickets.source.set_status(ticket_id, "open")
+        raise

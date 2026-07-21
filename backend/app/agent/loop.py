@@ -2,7 +2,7 @@ import logging
 
 from pydantic import ValidationError
 
-from app.agent.tools import SUBMIT_DIAGNOSIS, TOOLS, run_tool
+from app.agent.tools import SUBMIT_DIAGNOSIS, TOOLS, cite_recalled, run_tool
 from app.config import settings
 from app.models import Diagnosis, EvidenceStep, HandleResponse, RelevantIncident
 from app.providers.base import Message, ToolResult
@@ -21,6 +21,21 @@ Procedimiento:
 Regla que no se rompe: si la memoria no devolvio nada parecido, decilo en root_cause
 y poné una confidence baja. Un "no tengo antecedentes de esto" es una respuesta
 correcta; una causa raiz inventada no lo es."""
+
+SIN_RESPUESTA = "(sin contenido)"
+
+PEDIDO_DE_DIAGNOSTICO = (
+    "No llamaste a ninguna herramienta. Si ya tenes lo necesario, llama a "
+    "submit_diagnosis; si te falta contexto, usa search_memory o query_incidents."
+)
+
+DIAGNOSTICO_PREMATURO = {
+    "error": (
+        "Llamaste a submit_diagnosis en el mismo turno que otras herramientas, "
+        "asi que todavia no viste lo que devolvieron. Se descarto el diagnostico. "
+        "Revisa los resultados de este turno y volve a llamar a submit_diagnosis."
+    )
+}
 
 NO_DIAGNOSIS = Diagnosis(
     root_cause="El agente no llego a un diagnostico dentro del limite de turnos.",
@@ -63,14 +78,30 @@ def handle(ticket: dict) -> HandleResponse:
     for _ in range(settings.agent_max_turns):
         turn = llm.converse(SYSTEM, messages, TOOLS)
         if not turn.tool_uses:
-            break
+            messages.append(
+                Message(role="assistant", text=turn.text or SIN_RESPUESTA)
+            )
+            messages.append(Message(role="user", text=PEDIDO_DE_DIAGNOSTICO))
+            continue
 
         messages.append(
             Message(role="assistant", text=turn.text or None, tool_uses=turn.tool_uses)
         )
         results: list[ToolResult] = []
+        hay_otras_tools = any(
+            use.name != SUBMIT_DIAGNOSIS.name for use in turn.tool_uses
+        )
         for use in turn.tool_uses:
             if use.name == SUBMIT_DIAGNOSIS.name:
+                if hay_otras_tools:
+                    results.append(
+                        ToolResult(
+                            id=use.id,
+                            content=DIAGNOSTICO_PREMATURO,
+                            is_error=True,
+                        )
+                    )
+                    continue
                 try:
                     diagnosis = Diagnosis.model_validate(use.args)
                 except ValidationError as exc:
@@ -81,7 +112,9 @@ def handle(ticket: dict) -> HandleResponse:
                             tool=use.name, via="error", args=use.args, returned=returned
                         )
                     )
-                    results.append(ToolResult(id=use.id, content=returned))
+                    results.append(
+                        ToolResult(id=use.id, content=returned, is_error=True)
+                    )
                 continue
             try:
                 returned, via = run_tool(use.name, use.args)
@@ -91,12 +124,15 @@ def handle(ticket: dict) -> HandleResponse:
             evidence.append(
                 EvidenceStep(tool=use.name, via=via, args=use.args, returned=returned)
             )
-            results.append(ToolResult(id=use.id, content=returned))
+            results.append(
+                ToolResult(id=use.id, content=returned, is_error=via == "error")
+            )
 
         if diagnosis is not None:
             break
         messages.append(Message(role="user", tool_results=results))
 
+    cite_recalled(evidence)
     return HandleResponse(
         ticket_id=ticket["id"],
         diagnosis=diagnosis or NO_DIAGNOSIS,

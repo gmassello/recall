@@ -22,17 +22,6 @@ CREATE VECTOR INDEX IF NOT EXISTS incidents_embedding_idx
     ON incidents (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS incidents_service_idx ON incidents (service, created_at);
 
-CREATE TABLE IF NOT EXISTS active_incidents (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ticket_ref STRING,
-    symptom STRING NOT NULL,
-    service STRING,
-    status STRING DEFAULT 'investigating',
-    context JSONB DEFAULT '{}',
-    opened_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-
 CREATE TABLE IF NOT EXISTS tickets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     external_id STRING UNIQUE,

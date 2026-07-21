@@ -20,6 +20,7 @@ class ToolUse:
 class ToolResult:
     id: str
     content: Any
+    is_error: bool = False
 
 
 @dataclass

@@ -25,20 +25,24 @@ class Ticket(BaseModel):
     created_at: datetime
 
 
-class MemoryHit(BaseModel):
+class GeneratedTicket(BaseModel):
     id: str
     title: str
     symptom: str
-    root_cause: str | None = None
-    resolution: str | None = None
     service: str | None = None
     severity: str | None = None
-    created_at: datetime
-    quality_score: float
-    times_cited: int
-    times_helpful: int
-    distance: float
-    score: float
+    source: str
+
+    @classmethod
+    def from_row(cls, row: dict) -> "GeneratedTicket":
+        return cls(
+            id=row["id"],
+            title=row["title"],
+            symptom=row.get("description") or row["title"],
+            service=row.get("service"),
+            severity=row.get("severity"),
+            source=row["source"],
+        )
 
 
 class Incident(BaseModel):
@@ -62,7 +66,7 @@ class Incident(BaseModel):
 class Diagnosis(BaseModel):
     root_cause: str
     mitigation_steps: list[str] = Field(default_factory=list)
-    confidence: float = 0.0
+    confidence: float = Field(0.0, ge=0.0, le=1.0)
 
 
 class RelevantIncident(BaseModel):

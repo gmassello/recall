@@ -1,6 +1,7 @@
 import pytest
 
-from app.agent import loop
+from app.agent import loop, tools
+from app.config import settings
 from app.providers.base import ToolUse, Turn
 
 TICKET = {
@@ -30,6 +31,13 @@ class FakeLLM:
     def converse(self, system, messages, tools) -> Turn:
         self.calls.append(list(messages))
         return self.turns[min(len(self.calls) - 1, len(self.turns) - 1)]
+
+
+@pytest.fixture
+def citas(monkeypatch):
+    registradas: list[list[str]] = []
+    monkeypatch.setattr(tools.memory, "cite", lambda ids: registradas.append(list(ids)))
+    return registradas
 
 
 @pytest.fixture
@@ -73,6 +81,31 @@ def test_argumentos_invalidos_no_propagan_excepcion(fake_llm, args_invalidos):
     assert respuesta.evidence, "el intento fallido no quedo en la evidencia"
 
 
+def test_no_diagnostica_en_el_mismo_turno_que_busca(fake_llm, monkeypatch, citas):
+    monkeypatch.setattr(loop, "run_tool", lambda name, args: ([{"id": "i1"}], "mcp"))
+    turno_mezclado = Turn(
+        tool_uses=[
+            ToolUse(id="busca", name="search_memory", args={"symptom": "x"}),
+            ToolUse(id="diagnostica", name="submit_diagnosis", args=VALIDO),
+        ]
+    )
+    llm = fake_llm([turno_mezclado, submit(VALIDO, use_id="tarde")])
+
+    respuesta = loop.handle(TICKET)
+
+    postergados = [
+        result
+        for message in llm.calls[1]
+        for result in message.tool_results
+        if result.id == "diagnostica"
+    ]
+    assert postergados, "el submit_diagnosis prematuro no recibio su tool_result"
+    assert "descarto" in str(postergados[0].content)
+
+    assert respuesta.diagnosis.root_cause == "Pool de conexiones agotado"
+    assert [step.tool for step in respuesta.evidence] == ["search_memory"]
+
+
 def test_el_modelo_recibe_el_error_y_se_corrige(fake_llm):
     llm = fake_llm([submit({"root_cause": 123}), submit(VALIDO, use_id="use-2")])
 
@@ -89,3 +122,60 @@ def test_el_modelo_recibe_el_error_y_se_corrige(fake_llm):
     ]
     assert errores, "el error de validacion no volvio al modelo como tool_result"
     assert errores[0].id == "use-1"
+
+
+def busca(use_id: str) -> Turn:
+    return Turn(tool_uses=[ToolUse(id=use_id, name="search_memory", args={"symptom": "x"})])
+
+
+def test_cita_una_sola_vez_por_diagnostico_sin_repetir_ids(fake_llm, monkeypatch, citas):
+    monkeypatch.setattr(
+        loop, "run_tool", lambda name, args: ([{"id": "i1"}, {"id": "i2"}], "mcp")
+    )
+    fake_llm([busca("b1"), busca("b2"), submit(VALIDO)])
+
+    loop.handle(TICKET)
+
+    assert citas == [["i1", "i2"]]
+
+
+def test_sin_memoria_recuperada_no_cita(fake_llm, citas):
+    fake_llm([submit(VALIDO)])
+
+    loop.handle(TICKET)
+
+    assert citas == [[]]
+
+
+def test_turno_de_solo_texto_pide_el_diagnostico_en_vez_de_cortar(fake_llm, citas):
+    llm = fake_llm([Turn(text="Estoy pensando."), submit(VALIDO)])
+
+    respuesta = loop.handle(TICKET)
+
+    assert respuesta.diagnosis.root_cause == "Pool de conexiones agotado"
+    textos = [m.text for m in llm.calls[1] if m.text]
+    assert loop.PEDIDO_DE_DIAGNOSTICO in textos
+
+
+def test_solo_texto_hasta_agotar_turnos_si_da_no_diagnosis(fake_llm, citas):
+    llm = fake_llm([Turn(text="Sigo pensando.")])
+
+    respuesta = loop.handle(TICKET)
+
+    assert respuesta.diagnosis == loop.NO_DIAGNOSIS
+    assert len(llm.calls) == settings.agent_max_turns
+
+
+def test_los_resultados_de_error_viajan_marcados(fake_llm, monkeypatch, citas):
+    def explota(name, args):
+        raise RuntimeError("la tool fallo")
+
+    monkeypatch.setattr(loop, "run_tool", explota)
+    llm = fake_llm([busca("b1"), submit(VALIDO)])
+
+    loop.handle(TICKET)
+
+    marcados = [
+        r for m in llm.calls[1] for r in m.tool_results if r.id == "b1"
+    ]
+    assert marcados and marcados[0].is_error is True

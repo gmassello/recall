@@ -25,6 +25,7 @@ def _to_bedrock_message(message: Message) -> dict[str, Any]:
                 "toolResult": {
                     "toolUseId": result.id,
                     "content": [{"json": {"result": result.content}}],
+                    "status": "error" if result.is_error else "success",
                 }
             }
         )

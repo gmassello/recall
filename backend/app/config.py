@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = "postgresql://root@localhost:26257/oncall?sslmode=disable"
+    database_url: str
 
     llm_provider: str = "bedrock"
     embedding_provider: str = "bedrock"

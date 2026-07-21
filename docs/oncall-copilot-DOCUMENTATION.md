@@ -97,7 +97,6 @@ CockroachDB Managed MCP Server  (read-only)
         ▼
 CockroachDB
         incidents          memoria LP: temporal + quality + VECTOR(1024)
-        active_incidents
         tickets
         ▲
         │ escrituras (postmortem · feedback · supersede) por psycopg directo
@@ -126,8 +125,7 @@ Dos limitaciones del índice vectorial que condicionan cómo se escribe la query
 
 ```sql
 -- severity : 'sev1' | 'sev2' | 'sev3' | 'sev4'
--- status   : tickets          -> 'open' | 'handling' | 'resolved'
---            active_incidents -> 'investigating' | 'mitigating' | 'resolved'
+-- status   : tickets -> 'open' | 'handling' | 'resolved'
 
 CREATE TABLE incidents (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -150,13 +148,6 @@ CREATE TABLE incidents (
 );
 CREATE VECTOR INDEX incidents_embedding_idx ON incidents (embedding);
 CREATE INDEX incidents_service_idx ON incidents (service, created_at);
-
-CREATE TABLE active_incidents (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ticket_ref STRING, symptom STRING NOT NULL, service STRING,
-    status STRING DEFAULT 'investigating', context JSONB DEFAULT '{}',
-    opened_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
-);
 
 CREATE TABLE tickets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
