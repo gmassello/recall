@@ -69,15 +69,18 @@ def test_parse_falla_con_forma_desconocida():
         ({"properties": {"statement": {"type": "string"}}}, "statement"),
         (
             {
-                "properties": {"db": {"type": "string"}, "q": {"type": "string"}},
-                "required": ["q"],
+                "properties": {
+                    "database": {"type": "string"},
+                    "query": {"type": "string"},
+                },
+                "required": ["database", "query"],
             },
-            "q",
+            "query",
         ),
         ({"properties": {"limite": {"type": "integer"}}}, "sql"),
         (None, "sql"),
     ],
-    ids=["por-propiedad", "prioriza-required", "sin-string", "sin-schema"],
+    ids=["por-propiedad", "prioriza-nombre-conocido", "sin-string", "sin-schema"],
 )
 def test_nombre_del_argumento_sale_del_input_schema(schema, esperado):
     assert _sql_arg(schema) == esperado
@@ -89,13 +92,18 @@ def test_eleccion_de_tool_por_nombre():
     assert _pick_sql_tool([FakeTool("list_databases")]) is None
 
 
+def test_select_query_tiene_prioridad():
+    tools = [FakeTool("execute_sql"), FakeTool("select_query")]
+    assert _pick_sql_tool(tools).name == "select_query"
+
+
 def test_la_tool_sql_se_descubre_una_sola_vez(sin_cache):
     session = FakeSession()
 
     primera = asyncio.run(_discover(session))
     segunda = asyncio.run(_discover(session))
 
-    assert primera == segunda == ("execute_sql", "sql")
+    assert primera == segunda == ("execute_sql", "sql", False)
     assert session.llamadas == 1
 
 

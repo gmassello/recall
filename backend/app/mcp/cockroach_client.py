@@ -16,18 +16,29 @@ def is_configured() -> bool:
 
 def _pick_sql_tool(tools: list) -> Any:
     for tool in tools:
+        if tool.name == "select_query":
+            return tool
+    for tool in tools:
         if "sql" in tool.name.lower() or "quer" in tool.name.lower():
             return tool
     return None
 
 
 def _sql_arg(schema: dict | None) -> str:
-    schema = schema or {}
-    properties = schema.get("properties", {})
-    for name in list(schema.get("required", [])) + list(properties):
-        if properties.get(name, {}).get("type") == "string":
+    properties = (schema or {}).get("properties", {})
+    for name in ("query", "sql", "statement"):
+        if name in properties:
+            return name
+    for name in properties:
+        if properties[name].get("type") == "string":
             return name
     return "sql"
+
+
+def _database_name() -> str:
+    from urllib.parse import urlparse
+
+    return urlparse(settings.database_url).path.lstrip("/") or "defaultdb"
 
 
 def _parse(payload: Any) -> list[dict]:
@@ -45,7 +56,7 @@ def _parse(payload: Any) -> list[dict]:
     raise ValueError("Respuesta del MCP sin filas reconocibles")
 
 
-async def _discover(session) -> tuple[str, str]:
+async def _discover(session) -> tuple[str, str, bool]:
     global _sql_tool
     if _sql_tool is None:
         tools = await session.list_tools()
@@ -55,7 +66,9 @@ async def _discover(session) -> tuple[str, str]:
             raise ValueError(
                 f"El MCP Server no expone una herramienta SQL. Expone: {nombres}"
             )
-        _sql_tool = (tool.name, _sql_arg(getattr(tool, "inputSchema", None)))
+        schema = getattr(tool, "inputSchema", None) or {}
+        needs_db = "database" in schema.get("properties", {})
+        _sql_tool = (tool.name, _sql_arg(schema), needs_db)
     return _sql_tool
 
 
@@ -64,6 +77,8 @@ async def _call(sql: str) -> list[dict]:
     from mcp.client.streamable_http import streamablehttp_client
 
     headers = {"Authorization": f"Bearer {settings.cockroach_mcp_api_key}"}
+    if settings.cockroach_mcp_cluster_id:
+        headers["mcp-cluster-id"] = settings.cockroach_mcp_cluster_id
     async with streamablehttp_client(settings.cockroach_mcp_url, headers=headers) as (
         read,
         write,
@@ -71,8 +86,11 @@ async def _call(sql: str) -> list[dict]:
     ):
         async with ClientSession(read, write) as session:
             await session.initialize()
-            nombre, arg = await _discover(session)
-            result = await session.call_tool(nombre, {arg: sql})
+            nombre, arg, needs_db = await _discover(session)
+            args = {arg: sql}
+            if needs_db:
+                args["database"] = _database_name()
+            result = await session.call_tool(nombre, args)
             if result.isError:
                 raise ValueError(f"El MCP devolvio error para: {sql[:120]}")
             if result.structuredContent is not None:

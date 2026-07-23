@@ -42,7 +42,7 @@ CockroachDB (tabla incidents con VECTOR(1024) + índice vectorial)
 
 ```bash
 cd backend
-python -m venv .venv
+python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
 cp .env.example .env        # completar DATABASE_URL y credenciales

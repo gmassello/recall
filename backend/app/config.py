@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     cockroach_mcp_url: str = ""
     cockroach_mcp_api_key: str = ""
+    cockroach_mcp_cluster_id: str = ""
 
     cors_origins: str = "http://localhost:5173"
 

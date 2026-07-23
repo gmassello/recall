@@ -310,7 +310,8 @@ npm run dev                   # http://localhost:5173 (proxea /api → :8000)
 |----------|-------------|---------|--------|
 | `DATABASE_URL` | sí | — | Connection string de CockroachDB (escrituras + fallback) |
 | `COCKROACH_MCP_API_KEY` | sí | — | API key del service account para el Managed MCP Server |
-| `COCKROACH_MCP_URL` | sí | — | Endpoint del MCP Server del cluster |
+| `COCKROACH_MCP_URL` | sí | — | Endpoint del MCP Server (`https://cockroachlabs.cloud/mcp`) |
+| `COCKROACH_MCP_CLUSTER_ID` | sí | — | ID del cluster, viaja en el header `mcp-cluster-id` |
 | `LLM_PROVIDER` | no | `bedrock` | `bedrock` \| `anthropic` |
 | `EMBEDDING_PROVIDER` | no | `bedrock` | Debe producir 1024 dims (`VECTOR(1024)`) |
 | `AWS_REGION` | si `bedrock` | `us-east-1` | Región con acceso a Bedrock habilitado |
