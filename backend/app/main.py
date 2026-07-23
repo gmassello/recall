@@ -5,7 +5,7 @@ from app.api import incidents, memory, tickets
 from app.config import settings
 from app.mcp import cockroach_client
 
-app = FastAPI(title="On-call Copilot", version="0.1.0")
+app = FastAPI(title="Recall", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

@@ -61,6 +61,7 @@ class Incident(BaseModel):
     times_cited: int
     times_helpful: int
     source: str
+    vigencia: Literal["vigente", "vencido", "superseded"] = "vigente"
 
 
 class Diagnosis(BaseModel):

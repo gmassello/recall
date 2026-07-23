@@ -17,6 +17,14 @@ Todo se corre desde `backend/` con el venv local (`.venv/bin/...`):
 .venv/bin/ruff check .
 ```
 
+Frontend desde `frontend/`:
+
+```bash
+npm install
+npm run dev     # http://localhost:5173, proxy /api → :8000
+npm run build   # tsc --noEmit && vite build — es el gate de type-check
+```
+
 Los tests son unitarios puros: mockean `db` y los providers, y `tests/conftest.py`
 setea un `DATABASE_URL` dummy. No levantan Cockroach ni llaman a Bedrock.
 
@@ -25,13 +33,22 @@ setea un `DATABASE_URL` dummy. No levantan Cockroach ni llaman a Bedrock.
 Backend FastAPI (Python 3.11+) de un copiloto de guardia: recibe tickets de
 incidente, los diagnostica con un agente LLM apoyado en memoria semántica de
 incidentes pasados, y cierra el ciclo escribiendo el postmortem de vuelta en esa
-memoria. El frontend descrito en `docs/oncall-copilot-DOCUMENTATION.md` (Vite,
-:5173) todavía no está en el repo.
+memoria. El frontend (`frontend/`, React + Vite + TS, :5173) tiene tres vistas —
+cola de tickets, vista de incidente y explorador de memoria — sin router ni
+state manager: todo con `useState` y `fetch`, proxy `/api` → `:8000`.
 
 Flujo central: `POST /tickets/{id}/handle` → `agent/loop.handle()` → el LLM llama
 `search_memory` / `query_incidents` → termina con `submit_diagnosis`. Luego un
 humano hace `POST /incidents/{id}/resolve`, que vuelve a embeber el incidente
 resuelto en `incidents` (`postmortem.write_postmortem`).
+
+Variante streaming: `GET /tickets/{id}/handle/stream` (SSE, es GET porque el
+`EventSource` del browser solo soporta GET). El nucleo del loop es el generador
+`loop.handle_events()`, que emite `("evidence", EvidenceStep)` por cada tool
+ejecutada y un `("result", HandleResponse)` final; `handle()` es un wrapper que
+lo consume. El frontend (`IncidentView`) consume el stream y pinta el timeline
+de evidencia en vivo. Al tocar el loop, mantener el contrato de eventos: ambos
+endpoints comparten el mismo generador.
 
 Capas y sus límites:
 
@@ -89,5 +106,7 @@ memoria, hay que decirlo, no inventar causa raíz.
 - `BEDROCK_MODEL_ID` requiere prefijo de inference profile acorde a `AWS_REGION`
   (`us.`, `eu.`, `au.`, `jp.`, `global.`); el ID desnudo falla. Los modelos de
   embedding, en cambio, van con ID desnudo. Detalle en `.env.example` y §7 de la doc.
-- `docs/oncall-copilot-DOCUMENTATION.md` es la referencia larga (modelo de datos,
+- `frontend/src/types.ts` espeja los modelos Pydantic de `app/models.py`: si
+  cambia un modelo que viaja por la API, actualizar ambos lados.
+- `docs/recall-DOCUMENTATION.md` es la referencia larga (modelo de datos,
   API, variables de entorno, roadmap).

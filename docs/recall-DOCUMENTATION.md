@@ -1,4 +1,4 @@
-# On-call Copilot
+# Recall
 
 Agente de respuesta a incidentes con **memoria agéntica completa**: recibe tickets,
 recuerda incidentes pasados semánticamente parecidos, diagnostica ponderando
@@ -7,9 +7,8 @@ recencia y calidad, y **aprende** de cada resolución. Aplicación full-stack,
 
 Entrega para el hackathón **CockroachDB × AWS — Build with Agentic Memory**.
 
-> **Estado: diseño.** Este documento es el spec desde el cual se construye el proyecto.
-> Todavía no hay código: el repo contiene solo `docs/` y `LICENSE`. Las secciones 4–7
-> describen el objetivo, no lo que hoy corre.
+> **Estado: implementado.** Backend (`backend/`) y frontend (`frontend/`) están
+> construidos según este spec. Las secciones 4–7 describen lo que hoy corre.
 
 ---
 
@@ -181,6 +180,7 @@ CREATE TABLE tickets (
 | POST | `/tickets/generate?n=1` | Genera `n` tickets sintéticos y los encola (§9) |
 | GET  | `/tickets/{id}` | Detalle de un ticket |
 | POST | `/tickets/{id}/handle` | Corre el loop agéntico → diagnóstico + evidencia |
+| GET  | `/tickets/{id}/handle/stream` | Igual que `handle` pero por SSE: eventos `evidence` (uno por herramienta), `result` (respuesta completa) y `error` |
 | POST | `/incidents/{ticket_id}/resolve` | Escribe el postmortem (memoria crece) |
 | POST | `/incidents/{ticket_id}/feedback` | 👍/👎 ajusta la calidad de la memoria |
 | GET  | `/memory?service=...` | Inspección de la memoria |
@@ -477,7 +477,7 @@ Fijar `MOCK_SEED` para que los pasos 2 y 6 sean reproducibles al grabar.
 
 ## 12. Roadmap / tareas priorizadas
 
-1. **SSE** en `/tickets/{id}/handle/stream` + consumo en el frontend para ver el razonamiento del agente en vivo.
+1. ~~**SSE** en `/tickets/{id}/handle/stream` + consumo en el frontend para ver el razonamiento del agente en vivo.~~ **Hecho**: el frontend consume el stream con `EventSource` y pinta el timeline de evidencia en vivo.
 2. **Detección de contradicción** que dispare `supersede()` automáticamente.
 3. **OpenAIProvider** siguiendo `providers/base.py` (demuestra la agnosticidad).
 4. **Deploy** en AWS (Lambda/ECS + S3) — suma "production readiness".

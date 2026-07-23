@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterator
 
 from pydantic import ValidationError
 
@@ -69,11 +70,27 @@ def _best_incident(evidence: list[EvidenceStep]) -> RelevantIncident | None:
     )
 
 
+AgentEvent = tuple[str, EvidenceStep | HandleResponse]
+
+
 def handle(ticket: dict) -> HandleResponse:
+    *_, (_, result) = handle_events(ticket)
+    return result
+
+
+def handle_events(ticket: dict) -> Iterator[AgentEvent]:
     llm = get_llm()
     messages = [Message(role="user", text=_prompt(ticket))]
     evidence: list[EvidenceStep] = []
     diagnosis: Diagnosis | None = None
+
+    def emitir(use, returned, via: str, results: list[ToolResult]) -> EvidenceStep:
+        step = EvidenceStep(tool=use.name, via=via, args=use.args, returned=returned)
+        evidence.append(step)
+        results.append(
+            ToolResult(id=use.id, content=returned, is_error=via == "error")
+        )
+        return step
 
     for _ in range(settings.agent_max_turns):
         turn = llm.converse(SYSTEM, messages, TOOLS)
@@ -112,35 +129,26 @@ def handle(ticket: dict) -> HandleResponse:
                 except ValidationError as exc:
                     log.warning("submit_diagnosis con argumentos invalidos: %s", exc)
                     returned = {"error": str(exc)}
-                    evidence.append(
-                        EvidenceStep(
-                            tool=use.name, via="error", args=use.args, returned=returned
-                        )
-                    )
-                    results.append(
-                        ToolResult(id=use.id, content=returned, is_error=True)
-                    )
+                    yield ("evidence", emitir(use, returned, "error", results))
                 continue
             try:
                 returned, via = run_tool(use.name, use.args)
             except Exception as exc:
                 log.exception("Fallo la herramienta %s", use.name)
                 returned, via = {"error": str(exc)}, "error"
-            evidence.append(
-                EvidenceStep(tool=use.name, via=via, args=use.args, returned=returned)
-            )
-            results.append(
-                ToolResult(id=use.id, content=returned, is_error=via == "error")
-            )
+            yield ("evidence", emitir(use, returned, via, results))
 
         if diagnosis is not None:
             break
         messages.append(Message(role="user", tool_results=results))
 
     cite_recalled(evidence)
-    return HandleResponse(
-        ticket_id=ticket["id"],
-        diagnosis=diagnosis or NO_DIAGNOSIS,
-        most_relevant_incident=_best_incident(evidence),
-        evidence=evidence,
+    yield (
+        "result",
+        HandleResponse(
+            ticket_id=ticket["id"],
+            diagnosis=diagnosis or NO_DIAGNOSIS,
+            most_relevant_incident=_best_incident(evidence),
+            evidence=evidence,
+        ),
     )

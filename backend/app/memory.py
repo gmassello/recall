@@ -73,11 +73,17 @@ def _as_datetime(value) -> datetime:
     return datetime.fromisoformat(str(value))
 
 
-def is_current(row: dict, now: datetime) -> bool:
-    if row.get("distance") is None or row.get("superseded_by"):
-        return False
+def vigencia_de(row: dict, now: datetime) -> str:
+    if row.get("superseded_by"):
+        return "superseded"
     valid_until = row.get("valid_until")
-    return valid_until is None or _as_datetime(valid_until) > now
+    if valid_until is not None and _as_datetime(valid_until) <= now:
+        return "vencido"
+    return "vigente"
+
+
+def is_current(row: dict, now: datetime) -> bool:
+    return row.get("distance") is not None and vigencia_de(row, now) == "vigente"
 
 
 def recall(symptom: str, service: str | None = None) -> tuple[list[dict], str]:
@@ -207,7 +213,7 @@ def list_memory(service: str | None = None, limit: int = 100) -> list[dict]:
         service_filter = "WHERE service = %s"
         params.append(service)
     params.append(limit)
-    return fetch(
+    rows = fetch(
         f"""
         SELECT {MEMORY_COLUMNS}
         FROM incidents
@@ -217,3 +223,7 @@ def list_memory(service: str | None = None, limit: int = 100) -> list[dict]:
         """,
         params,
     )
+    now = datetime.now(timezone.utc)
+    for row in rows:
+        row["vigencia"] = vigencia_de(row, now)
+    return rows
