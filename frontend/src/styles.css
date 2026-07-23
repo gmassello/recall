@@ -92,7 +92,8 @@ button.primary {
 }
 
 input,
-textarea {
+textarea,
+select {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
@@ -103,7 +104,8 @@ textarea {
 }
 
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   outline: none;
   border-color: var(--primary);
 }

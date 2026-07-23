@@ -136,6 +136,10 @@ def query_incidents(
     return _read(sql, params)
 
 
+def _embed_incident(title: str, symptom: str) -> list[float]:
+    return get_embedder().embed(f"{title} {symptom}")
+
+
 def store_incident(
     title: str,
     symptom: str,
@@ -148,7 +152,7 @@ def store_incident(
     created_at: datetime | None = None,
     valid_until: datetime | None = None,
 ) -> str:
-    embedding = get_embedder().embed(f"{title} {symptom}")
+    embedding = _embed_incident(title, symptom)
     row = fetch_one(
         f"""
         INSERT INTO incidents (
@@ -195,15 +199,82 @@ def apply_feedback(incident_id: str, helpful: bool) -> dict | None:
     )
 
 
-def supersede(old_id: str, new_id: str) -> None:
-    execute(
+def supersede(old_id: str, new_id: str) -> bool:
+    row = fetch_one(
         """
         UPDATE incidents
         SET superseded_by = %s::UUID, valid_until = now()
         WHERE id = %s::UUID
+          AND EXISTS (SELECT 1 FROM incidents WHERE id = %s::UUID)
+        RETURNING id::STRING AS id
         """,
-        (new_id, old_id),
+        (new_id, old_id, new_id),
     )
+    return row is not None
+
+
+def _con_vigencia(row: dict | None, now: datetime | None = None) -> dict | None:
+    if row:
+        row["vigencia"] = vigencia_de(row, now or datetime.now(timezone.utc))
+    return row
+
+
+def get_incident(incident_id: str) -> dict | None:
+    row = fetch_one(
+        f"SELECT {MEMORY_COLUMNS} FROM incidents WHERE id = %s::UUID",
+        (incident_id,),
+    )
+    return _con_vigencia(row)
+
+
+def update_incident(incident_id: str, cambios: dict) -> dict | None:
+    if not cambios:
+        return get_incident(incident_id)
+
+    sets = []
+    params: list = []
+    for campo, valor in cambios.items():
+        sets.append(f"{campo} = %s")
+        params.append(valor)
+
+    if "title" in cambios or "symptom" in cambios:
+        actual = get_incident(incident_id)
+        if actual is None:
+            return None
+        title = cambios.get("title") or actual["title"]
+        symptom = cambios.get("symptom") or actual["symptom"]
+        if (title, symptom) != (actual["title"], actual["symptom"]):
+            sets.append(f"embedding = %s{VECTOR_CAST}")
+            params.append(to_vector_literal(_embed_incident(title, symptom)))
+
+    params.append(incident_id)
+    row = fetch_one(
+        f"""
+        UPDATE incidents
+        SET {", ".join(sets)}
+        WHERE id = %s::UUID
+        RETURNING {MEMORY_COLUMNS}
+        """,
+        params,
+    )
+    return _con_vigencia(row)
+
+
+def delete_incident(incident_id: str) -> bool:
+    execute(
+        "UPDATE incidents SET superseded_by = NULL WHERE superseded_by = %s::UUID",
+        (incident_id,),
+    )
+    row = fetch_one(
+        "DELETE FROM incidents WHERE id = %s::UUID RETURNING id::STRING AS id",
+        (incident_id,),
+    )
+    return row is not None
+
+
+def clear_memory() -> int:
+    rows = fetch("DELETE FROM incidents RETURNING id")
+    return len(rows)
 
 
 def list_memory(service: str | None = None, limit: int = 100) -> list[dict]:
@@ -224,6 +295,4 @@ def list_memory(service: str | None = None, limit: int = 100) -> list[dict]:
         params,
     )
     now = datetime.now(timezone.utc)
-    for row in rows:
-        row["vigencia"] = vigencia_de(row, now)
-    return rows
+    return [_con_vigencia(row, now) for row in rows]

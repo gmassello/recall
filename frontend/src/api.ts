@@ -4,6 +4,7 @@ import type {
   FeedbackResponse,
   HandleResponse,
   Incident,
+  IncidentUpdate,
   ResolveRequest,
   ResolveResponse,
   Ticket,
@@ -25,13 +26,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(detail)
   }
+  if (res.status === 204) {
+    return undefined as T
+  }
   return res.json()
 }
 
-function post(body?: unknown): RequestInit {
+function send(method: string, body?: unknown): RequestInit {
   return body === undefined
-    ? { method: 'POST' }
-    : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    ? { method }
+    : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+}
+
+function post(body?: unknown): RequestInit {
+  return send('POST', body)
 }
 
 export function listTickets(): Promise<Ticket[]> {
@@ -57,6 +65,22 @@ export function sendFeedback(ticketId: string, body: FeedbackRequest): Promise<F
 export function listMemory(service?: string): Promise<Incident[]> {
   const query = service ? `?service=${encodeURIComponent(service)}` : ''
   return request(`/memory${query}`)
+}
+
+export function updateIncident(incidentId: string, body: IncidentUpdate): Promise<Incident> {
+  return request(`/memory/${incidentId}`, send('PATCH', body))
+}
+
+export function deleteIncident(incidentId: string): Promise<void> {
+  return request(`/memory/${incidentId}`, send('DELETE'))
+}
+
+export function clearMemory(): Promise<{ deleted: number }> {
+  return request('/memory', send('DELETE'))
+}
+
+export function supersedeIncident(incidentId: string, newId: string): Promise<void> {
+  return request(`/memory/${incidentId}/supersede`, send('POST', { new_id: newId }))
 }
 
 export interface StreamCallbacks {

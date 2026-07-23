@@ -64,6 +64,19 @@ class Incident(BaseModel):
     vigencia: Literal["vigente", "vencido", "superseded"] = "vigente"
 
 
+class IncidentUpdate(BaseModel):
+    title: str | None = None
+    symptom: str | None = None
+    root_cause: str | None = None
+    resolution: str | None = None
+    service: str | None = None
+    severity: str | None = None
+
+
+class SupersedeRequest(BaseModel):
+    new_id: str
+
+
 class Diagnosis(BaseModel):
     root_cause: str
     mitigation_steps: list[str] = Field(default_factory=list)

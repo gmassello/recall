@@ -34,6 +34,15 @@ export interface Incident {
   vigencia: Vigencia
 }
 
+export interface IncidentUpdate {
+  title?: string
+  symptom?: string
+  root_cause?: string | null
+  resolution?: string | null
+  service?: string | null
+  severity?: string | null
+}
+
 export interface Diagnosis {
   root_cause: string
   mitigation_steps: string[]
