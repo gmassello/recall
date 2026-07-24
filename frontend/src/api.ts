@@ -8,6 +8,8 @@ import type {
   ResolveRequest,
   ResolveResponse,
   Ticket,
+  TicketCreate,
+  TicketUpdate,
 } from './types'
 
 const BASE = '/api'
@@ -52,6 +54,22 @@ export function getTicket(ticketId: string): Promise<Ticket> {
 
 export function generateTicket(): Promise<unknown> {
   return request('/tickets/generate?n=1', post())
+}
+
+export function createTicket(body: TicketCreate): Promise<Ticket> {
+  return request('/tickets', post(body))
+}
+
+export function updateTicket(ticketId: string, body: TicketUpdate): Promise<Ticket> {
+  return request(`/tickets/${ticketId}`, send('PATCH', body))
+}
+
+export function deleteTicket(ticketId: string): Promise<void> {
+  return request(`/tickets/${ticketId}`, send('DELETE'))
+}
+
+export function clearTickets(): Promise<{ deleted: number }> {
+  return request('/tickets', send('DELETE'))
 }
 
 export function resolveIncident(ticketId: string, body: ResolveRequest): Promise<ResolveResponse> {

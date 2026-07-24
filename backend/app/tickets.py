@@ -10,6 +10,8 @@ TICKET_COLUMNS = """
     severity, status, source, created_at
 """
 
+OPEN_SQL_FILTER = "status != 'resolved'"
+
 TEMPLATES = [
     ("payments-api", "latencia p99 subio a {ms}ms en checkout", "sev2"),
     ("payments-api", "{pct}% de 5xx en POST /charge", "sev1"),
@@ -33,6 +35,12 @@ class TicketSource(Protocol):
     def generate(self, n: int = 1) -> list[dict]: ...
 
     def set_status(self, ticket_id: str, status: str) -> None: ...
+
+    def update(self, ticket_id: str, cambios: dict) -> dict | None: ...
+
+    def delete(self, ticket_id: str) -> bool: ...
+
+    def clear_open(self) -> int: ...
 
 
 class TicketGenerator:
@@ -61,7 +69,7 @@ class MockTicketSource:
 
     def list_open(self) -> list[dict]:
         return fetch(
-            f"SELECT {TICKET_COLUMNS} FROM tickets WHERE status != 'resolved' "
+            f"SELECT {TICKET_COLUMNS} FROM tickets WHERE {OPEN_SQL_FILTER} "
             "ORDER BY created_at DESC LIMIT 100"
         )
 
@@ -99,6 +107,27 @@ class MockTicketSource:
         execute(
             "UPDATE tickets SET status = %s WHERE id = %s::UUID", (status, ticket_id)
         )
+
+    def update(self, ticket_id: str, cambios: dict) -> dict | None:
+        if not cambios:
+            return self.get(ticket_id)
+
+        sets = ", ".join(f"{campo} = %s" for campo in cambios)
+        return fetch_one(
+            f"UPDATE tickets SET {sets} WHERE id = %s::UUID RETURNING {TICKET_COLUMNS}",
+            [*cambios.values(), ticket_id],
+        )
+
+    def delete(self, ticket_id: str) -> bool:
+        row = fetch_one(
+            "DELETE FROM tickets WHERE id = %s::UUID RETURNING id::STRING AS id",
+            (ticket_id,),
+        )
+        return row is not None
+
+    def clear_open(self) -> int:
+        rows = fetch(f"DELETE FROM tickets WHERE {OPEN_SQL_FILTER} RETURNING id")
+        return len(rows)
 
 
 source = MockTicketSource()

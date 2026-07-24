@@ -1,11 +1,11 @@
 import { Fragment, useEffect, useState } from 'react'
 import { clearMemory, deleteIncident, listMemory, supersedeIncident, updateIncident } from '../api'
 import { useAsync } from '../hooks'
-import type { Incident, IncidentUpdate, Severity, Vigencia } from '../types'
+import { SEVERITIES } from '../types'
+import type { Incident, IncidentUpdate, Vigencia } from '../types'
 
 const VIGENCIA_BADGE: Record<Vigencia, string> = { vigente: 'ok', vencido: 'bad', superseded: 'stale' }
 const DEBOUNCE_MS = 300
-const SEVERITIES: Severity[] = ['sev1', 'sev2', 'sev3', 'sev4']
 const CAMPOS_NULABLES = ['service', 'severity', 'root_cause', 'resolution'] as const
 
 interface Draft {

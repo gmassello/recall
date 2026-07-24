@@ -1,13 +1,19 @@
 import logging
 from collections.abc import Iterator
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
 from app import tickets
 from app.agent.loop import handle, handle_events
-from app.api.deps import get_ticket_or_404
-from app.models import GeneratedTicket, HandleResponse, Ticket, TicketCreate
+from app.api.deps import TICKET_NO_ENCONTRADO, get_ticket_or_404
+from app.models import (
+    GeneratedTicket,
+    HandleResponse,
+    Ticket,
+    TicketCreate,
+    TicketUpdate,
+)
 
 log = logging.getLogger(__name__)
 
@@ -30,9 +36,28 @@ def generate_tickets(n: int = Query(1, ge=1, le=20)) -> dict:
     return {"generated": generados}
 
 
+@router.delete("")
+def clear_tickets() -> dict:
+    return {"deleted": tickets.source.clear_open()}
+
+
 @router.get("/{ticket_id}", response_model=Ticket)
 def get_ticket(ticket_id: str) -> dict:
     return get_ticket_or_404(ticket_id)
+
+
+@router.patch("/{ticket_id}", response_model=Ticket)
+def edit_ticket(ticket_id: str, body: TicketUpdate) -> dict:
+    row = tickets.source.update(ticket_id, body.model_dump(exclude_unset=True))
+    if row is None:
+        raise HTTPException(status_code=404, detail=TICKET_NO_ENCONTRADO)
+    return row
+
+
+@router.delete("/{ticket_id}", status_code=204)
+def delete_ticket(ticket_id: str) -> None:
+    if not tickets.source.delete(ticket_id):
+        raise HTTPException(status_code=404, detail=TICKET_NO_ENCONTRADO)
 
 
 @router.post("/{ticket_id}/handle", response_model=HandleResponse)

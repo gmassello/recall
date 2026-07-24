@@ -13,6 +13,13 @@ class TicketCreate(BaseModel):
     source: str = "manual"
 
 
+class TicketUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    service: str | None = None
+    severity: Literal["sev1", "sev2", "sev3", "sev4"] | None = None
+
+
 class Ticket(BaseModel):
     id: str
     external_id: str | None = None

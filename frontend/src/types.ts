@@ -1,4 +1,5 @@
 export type Severity = 'sev1' | 'sev2' | 'sev3' | 'sev4'
+export const SEVERITIES: Severity[] = ['sev1', 'sev2', 'sev3', 'sev4']
 export type TicketStatus = 'open' | 'handling' | 'resolved'
 
 export interface Ticket {
@@ -12,6 +13,15 @@ export interface Ticket {
   source: string
   created_at: string
 }
+
+export interface TicketCreate {
+  title: string
+  description: string | null
+  service: string | null
+  severity: Severity
+}
+
+export type TicketUpdate = Partial<TicketCreate>
 
 export type Vigencia = 'vigente' | 'vencido' | 'superseded'
 

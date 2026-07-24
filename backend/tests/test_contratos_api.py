@@ -37,7 +37,16 @@ def test_el_ticket_generado_tiene_la_forma_del_spec():
 
 
 def test_el_protocol_declara_todo_lo_que_la_api_usa():
-    usados = {"list_open", "get", "ingest", "generate", "set_status"}
+    usados = {
+        "list_open",
+        "get",
+        "ingest",
+        "generate",
+        "set_status",
+        "update",
+        "delete",
+        "clear_open",
+    }
 
     assert usados <= get_protocol_members(TicketSource)
     assert isinstance(MockTicketSource(), TicketSource)
