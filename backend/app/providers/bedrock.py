@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any
 
 import boto3
@@ -6,8 +7,12 @@ import boto3
 from app.config import settings
 from app.providers.base import Message, ToolSpec, ToolUse, Turn
 
+BEARER_TOKEN_ENV = "AWS_BEARER_TOKEN_BEDROCK"
+
 
 def _client():
+    if settings.bedrock_api_key:
+        os.environ.setdefault(BEARER_TOKEN_ENV, settings.bedrock_api_key)
     return boto3.client("bedrock-runtime", region_name=settings.aws_region)
 
 

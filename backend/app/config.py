@@ -10,10 +10,14 @@ class Settings(BaseSettings):
     embedding_provider: str = "bedrock"
 
     aws_region: str = "us-east-1"
+    bedrock_api_key: str = ""
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     bedrock_embedding_model_id: str = "amazon.titan-embed-text-v2:0"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-5-20250929"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-flash-latest"
+    gemini_embedding_model: str = "gemini-embedding-001"
     max_tokens: int = 2048
 
     cockroach_mcp_url: str = ""

@@ -14,6 +14,10 @@ def get_llm() -> LLMProvider:
         from app.providers.anthropic_provider import AnthropicProvider
 
         return AnthropicProvider()
+    if settings.llm_provider == "gemini":
+        from app.providers.gemini_provider import GeminiProvider
+
+        return GeminiProvider()
     raise ValueError(f"LLM_PROVIDER desconocido: {settings.llm_provider}")
 
 
@@ -23,4 +27,8 @@ def get_embedder() -> EmbeddingProvider:
         from app.providers.bedrock import BedrockTitanEmbedder
 
         return BedrockTitanEmbedder()
+    if settings.embedding_provider == "gemini":
+        from app.providers.gemini_provider import GeminiEmbedder
+
+        return GeminiEmbedder()
     raise ValueError(f"EMBEDDING_PROVIDER desconocido: {settings.embedding_provider}")

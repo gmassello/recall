@@ -8,7 +8,7 @@ import {
   updateTicket,
 } from '../api'
 import { useAsync } from '../hooks'
-import { SEVERITIES } from '../types'
+import { SERVICES, SEVERITIES } from '../types'
 import type { Severity, Ticket, TicketCreate, TicketStatus } from '../types'
 
 const SEV_BADGE: Record<Severity, string> = { sev1: 'bad', sev2: 'warn', sev3: '', sev4: '' }
@@ -192,14 +192,18 @@ function TicketForm({ ticket, onSaved }: { ticket?: Ticket; onSaved: () => void 
       </label>
       <label>
         Servicio
-        <input value={draft.service} onChange={(e) => set('service', e.target.value)} />
+        <select value={draft.service} onChange={(e) => set('service', e.target.value)}>
+          <option value="">(sin area)</option>
+          {SERVICES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
       </label>
       <label>
         Severidad
-        <select
-          value={draft.severity}
-          onChange={(e) => setDraft((d) => ({ ...d, severity: e.target.value as Severity }))}
-        >
+        <select value={draft.severity} onChange={(e) => set('severity', e.target.value)}>
           {SEVERITIES.map((s) => (
             <option key={s} value={s}>
               {s}

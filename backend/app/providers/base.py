@@ -14,6 +14,7 @@ class ToolUse:
     id: str
     name: str
     args: dict[str, Any]
+    signature: Any = None
 
 
 @dataclass

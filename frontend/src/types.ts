@@ -1,5 +1,6 @@
 export type Severity = 'sev1' | 'sev2' | 'sev3' | 'sev4'
 export const SEVERITIES: Severity[] = ['sev1', 'sev2', 'sev3', 'sev4']
+export const SERVICES: string[] = ['hardware-pc', 'software-pc', 'hardware-celular', 'software-celular']
 export type TicketStatus = 'open' | 'handling' | 'resolved'
 
 export interface Ticket {

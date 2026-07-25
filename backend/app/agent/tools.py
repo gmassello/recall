@@ -6,9 +6,9 @@ from app.providers.base import ToolSpec
 SEARCH_MEMORY = ToolSpec(
     name="search_memory",
     description=(
-        "Busca en la memoria de incidentes pasados por similitud semantica con un "
-        "sintoma. Devuelve los mas relevantes ya re-rankeados por recencia y calidad. "
-        "Los incidentes obsoletos o reemplazados quedan fuera."
+        "Busca en la memoria de reparaciones pasadas por similitud semantica con un "
+        "sintoma. Devuelve las mas relevantes ya re-rankeadas por recencia y calidad. "
+        "Las reparaciones obsoletas o reemplazadas quedan fuera."
     ),
     input_schema={
         "type": "object",
@@ -16,7 +16,7 @@ SEARCH_MEMORY = ToolSpec(
             "symptom": {"type": "string", "description": "El sintoma a buscar"},
             "service": {
                 "type": "string",
-                "description": "Opcional: acota la busqueda a un servicio",
+                "description": "Opcional: acota la busqueda a un area del taller",
             },
         },
         "required": ["symptom"],
@@ -26,8 +26,8 @@ SEARCH_MEMORY = ToolSpec(
 QUERY_INCIDENTS = ToolSpec(
     name="query_incidents",
     description=(
-        "Consulta estructurada sobre los incidentes: los mas recientes de un servicio "
-        "o de una severidad. Util para ver el contexto operativo, no la similitud."
+        "Consulta estructurada sobre las reparaciones: las mas recientes de un area "
+        "o de una severidad. Util para ver que se vio antes en el taller, no similitud."
     ),
     input_schema={
         "type": "object",

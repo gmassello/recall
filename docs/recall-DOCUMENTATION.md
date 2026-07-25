@@ -312,16 +312,29 @@ npm run dev                   # http://localhost:5173 (proxea /api → :8000)
 | `COCKROACH_MCP_API_KEY` | sí | — | API key del service account para el Managed MCP Server |
 | `COCKROACH_MCP_URL` | sí | — | Endpoint del MCP Server (`https://cockroachlabs.cloud/mcp`) |
 | `COCKROACH_MCP_CLUSTER_ID` | sí | — | ID del cluster, viaja en el header `mcp-cluster-id` |
-| `LLM_PROVIDER` | no | `bedrock` | `bedrock` \| `anthropic` |
-| `EMBEDDING_PROVIDER` | no | `bedrock` | Debe producir 1024 dims (`VECTOR(1024)`) |
+| `LLM_PROVIDER` | no | `bedrock` | `bedrock` \| `anthropic` \| `gemini` |
+| `EMBEDDING_PROVIDER` | no | `bedrock` | `bedrock` \| `gemini`. Debe producir 1024 dims (`VECTOR(1024)`) |
 | `AWS_REGION` | si `bedrock` | `us-east-1` | Región con acceso a Bedrock habilitado |
+| `BEDROCK_API_KEY` | no | — | API key de Bedrock (`ABSK…`), alternativa a SigV4. Se propaga a `AWS_BEARER_TOKEN_BEDROCK` |
 | `BEDROCK_MODEL_ID` | no | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | Modelo vía Converse API. **Inference profile, no el ID desnudo** (ver abajo) |
 | `BEDROCK_EMBEDDING_MODEL_ID` | no | `amazon.titan-embed-text-v2:0` | Titan v2, 1024 dims. ID desnudo: los modelos de embedding no usan inference profiles |
 | `ANTHROPIC_API_KEY` | si `anthropic` | — | Solo para el swap de proveedor |
+| `GEMINI_API_KEY` | si `gemini` | — | Alternativa **gratis** a Bedrock (free tier): una key hace LLM y embeddings |
+| `GEMINI_MODEL` | no | `gemini-2.5-flash` | Modelo de chat con function calling |
+| `GEMINI_EMBEDDING_MODEL` | no | `gemini-embedding-001` | `output_dimensionality=1024` → sin migrar la tabla |
 | `MOCK_SEED` | no | — | Semilla del generador de tickets → demo reproducible (§9) |
 
-Credenciales AWS por la cadena estándar de boto3 (perfil, env vars o rol) — no se
-definen variables propias.
+Credenciales AWS por la cadena estándar de boto3 (perfil, env vars o rol).
+
+Bedrock acepta además **API keys** en lugar de SigV4: boto3 las lee de la variable de
+entorno `AWS_BEARER_TOKEN_BEDROCK` y solo de ahí. Ponerla en `BEDROCK_API_KEY` del
+`.env` alcanza — `providers/bedrock._client()` la propaga a esa variable antes de
+construir el cliente. Si `AWS_BEARER_TOKEN_BEDROCK` ya viene del entorno, gana esa.
+
+Ojo con el diagnóstico: sin la key, boto3 firma con SigV4 y un rol sin permisos
+devuelve `AccessDeniedException: not authorized to perform bedrock:InvokeModel`. Con
+una key de formato inválido el error es distinto —`Invalid API Key format`— y ese
+cambio de mensaje es lo que distingue "falta la key" de "la key no sirve".
 
 **El prefijo del model ID tiene que acompañar a `AWS_REGION`.** Claude Sonnet 4.5 no
 admite invocación on-demand con el ID desnudo (`In-Region ❌` en todas las regiones): hay
@@ -347,6 +360,17 @@ ANTHROPIC_API_KEY=...
 ```
 El resto del código no cambia. Para el hackathón, dejar `bedrock` para cumplir AWS.
 
+Alternativa **gratis** de punta a punta (LLM + embeddings) sin cuenta AWS:
+```
+# backend/.env
+LLM_PROVIDER=gemini
+EMBEDDING_PROVIDER=gemini
+GEMINI_API_KEY=...   # https://aistudio.google.com/apikey
+```
+El embedder pide `output_dimensionality=1024` y normaliza el vector, así que entra en
+`VECTOR(1024)` sin migrar. Se puede mezclar: dejar `LLM_PROVIDER=anthropic` y usar solo
+`EMBEDDING_PROVIDER=gemini` para cubrir lo que el gateway corporativo no da (Titan).
+
 ---
 
 ## 8. Cómo cumple los requisitos del hackathón
@@ -362,17 +386,22 @@ El resto del código no cambia. Para el hackathón, dejar `bedrock` para cumplir
 ## 9. Generador de tickets
 
 El mock no solo sirve un fixture: genera incidentes sintéticos a demanda, vía
-`POST /tickets/generate` o el botón **Generar ticket** de `TicketQueue`.
+`POST /tickets/generate` o el botón **Generar random** de `TicketQueue`.
 
-Las plantillas son una lista de `(service, plantilla_de_síntoma, severidad)` en
-`tickets.py`, con placeholders numéricos que se rellenan con `random`:
+El dominio es una casa de service técnico de computación y celulares, y el campo
+`service` es el **área**: `hardware-pc`, `software-pc`, `hardware-celular`,
+`software-celular`.
+
+Las plantillas son una lista de `(area, plantilla_de_síntoma, severidad)` en
+`tickets.py`, con placeholders numéricos (`pct`, `n`, `gb`) que se rellenan con
+`random`:
 
 ```python
 TEMPLATES = [
-    ("payments-api",  "latencia p99 subió a {ms}ms en checkout",      "sev2"),
-    ("payments-api",  "{pct}% de 5xx en POST /charge",                "sev1"),
-    ("auth-service",  "picos de timeout al validar JWT ({ms}ms)",     "sev3"),
-    ("notifications", "cola de envíos con {n} mensajes sin consumir", "sev3"),
+    ("hardware-pc",      "la notebook no enciende y no prende el led de carga", "sev1"),
+    ("software-pc",      "Windows entra en bucle de reinicio tras el update",   "sev2"),
+    ("hardware-celular", "el tactil no responde en el {pct}% de la pantalla",   "sev2"),
+    ("software-celular", "queda en el logo al arrancar desde hace {n} dias",    "sev2"),
 ]
 ```
 
@@ -381,11 +410,15 @@ para producir lo que una plantilla resuelve igual.
 
 Dos requisitos de las plantillas, que son lo que hace útil al generador:
 
-- **Cubrir los mismos servicios y familias de síntoma que `seed_memory.py`**, con la
+- **Cubrir las mismas áreas y familias de síntoma que `seed_memory.py`**, con la
   redacción variada. Si el ticket generado no se parece semánticamente a nada en
   memoria, el recall vuelve vacío y la demo se ve peor de lo que el sistema es.
-- **Incluir un servicio sin memoria previa**, para poder mostrar el caso honesto: el
-  agente no encuentra nada y lo dice, en vez de inventar un diagnóstico.
+- **Incluir un área sin memoria previa** (hoy `software-celular`), para poder mostrar
+  el caso honesto: el agente no encuentra nada y lo dice, en vez de inventar un
+  diagnóstico.
+
+Los dos requisitos son el gate de `tests/test_generador_dominio.py`, que además valida
+que cada plantilla produzca un `TicketCreate` válido.
 
 `MOCK_SEED` (env var, opcional) fija la semilla de `random` → corridas reproducibles
 para grabar el video sin sorpresas.

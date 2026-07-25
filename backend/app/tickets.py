@@ -13,14 +13,14 @@ TICKET_COLUMNS = """
 OPEN_SQL_FILTER = "status != 'resolved'"
 
 TEMPLATES = [
-    ("payments-api", "latencia p99 subio a {ms}ms en checkout", "sev2"),
-    ("payments-api", "{pct}% de 5xx en POST /charge", "sev1"),
-    ("payments-api", "el pool de conexiones se agota con {n} requests concurrentes", "sev1"),
-    ("auth-service", "picos de timeout al validar JWT ({ms}ms)", "sev3"),
-    ("auth-service", "{pct}% de logins fallidos tras rotar la clave de firma", "sev2"),
-    ("notifications", "cola de envios con {n} mensajes sin consumir", "sev3"),
-    ("notifications", "los push tardan {ms}ms en salir desde que se encolan", "sev3"),
-    ("search-indexer", "el indice quedo {n} documentos atras del primario", "sev2"),
+    ("hardware-pc", "la notebook no enciende y no prende el led de carga", "sev1"),
+    ("hardware-pc", "se apaga sola a los {n} minutos de uso y sopla fuerte el cooler", "sev2"),
+    ("software-pc", "Windows entra en bucle de reinicio tras el ultimo update", "sev2"),
+    ("software-pc", "tarda {n} minutos en arrancar y el disco queda al 100% de uso", "sev3"),
+    ("hardware-celular", "el tactil no responde en el {pct}% de la pantalla", "sev2"),
+    ("hardware-celular", "no carga salvo que quede el cable en cierta posicion", "sev3"),
+    ("software-celular", "queda en el logo al arrancar desde hace {n} dias", "sev2"),
+    ("software-celular", "se quedo sin espacio con {gb}GB en fotos y no actualiza", "sev4"),
 ]
 
 
@@ -50,9 +50,9 @@ class TicketGenerator:
     def generate(self) -> TicketCreate:
         service, template, severity = self.random.choice(TEMPLATES)
         symptom = template.format(
-            ms=self.random.randrange(800, 9000, 100),
-            pct=self.random.randrange(5, 80, 5),
-            n=self.random.randrange(500, 50000, 500),
+            pct=self.random.randrange(10, 95, 5),
+            n=self.random.randrange(2, 60),
+            gb=self.random.randrange(8, 512, 8),
         )
         return TicketCreate(
             title=f"[{service}] {symptom}",
