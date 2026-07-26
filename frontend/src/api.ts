@@ -24,7 +24,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
       }
     } catch {
-      /* respuesta sin JSON */
+      /* response without JSON */
     }
     throw new Error(detail)
   }
@@ -126,7 +126,7 @@ export function streamHandle(ticketId: string, callbacks: StreamCallbacks): () =
   })
   source.addEventListener('error', () => {
     source.close()
-    callbacks.onError('Se corto la conexion con el agente')
+    callbacks.onError('The connection with the agent was lost')
   })
   return () => source.close()
 }

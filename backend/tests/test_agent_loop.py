@@ -6,15 +6,15 @@ from app.providers.base import ToolUse, Turn
 
 TICKET = {
     "id": "ticket-1",
-    "title": "[payments-api] checkout lento",
-    "description": "latencia p99 en 4200ms",
+    "title": "[payments-api] slow checkout",
+    "description": "p99 latency at 4200ms",
     "service": "payments-api",
     "severity": "sev2",
 }
 
-VALIDO = {
-    "root_cause": "Pool de conexiones agotado",
-    "mitigation_steps": ["Subir max_connections"],
+VALID = {
+    "root_cause": "Connection pool exhausted",
+    "mitigation_steps": ["Raise max_connections"],
     "confidence": 0.8,
 }
 
@@ -34,10 +34,10 @@ class FakeLLM:
 
 
 @pytest.fixture
-def citas(monkeypatch):
-    registradas: list[list[str]] = []
-    monkeypatch.setattr(tools.memory, "cite", lambda ids: registradas.append(list(ids)))
-    return registradas
+def citations(monkeypatch):
+    recorded: list[list[str]] = []
+    monkeypatch.setattr(tools.memory, "cite", lambda ids: recorded.append(list(ids)))
+    return recorded
 
 
 @pytest.fixture
@@ -50,132 +50,132 @@ def fake_llm(monkeypatch):
     return _install
 
 
-def test_diagnostico_valido_al_primer_intento(fake_llm):
-    fake_llm([submit(VALIDO)])
+def test_valid_diagnosis_on_first_attempt(fake_llm):
+    fake_llm([submit(VALID)])
 
-    respuesta = loop.handle(TICKET)
+    response = loop.handle(TICKET)
 
-    assert respuesta.diagnosis.root_cause == "Pool de conexiones agotado"
-    assert respuesta.diagnosis.confidence == 0.8
+    assert response.diagnosis.root_cause == "Connection pool exhausted"
+    assert response.diagnosis.confidence == 0.8
 
 
 @pytest.mark.parametrize(
-    "args_invalidos",
+    "invalid_args",
     [
         {"root_cause": 123},
-        {"confidence": "alta"},
-        {"mitigation_steps": "no es una lista"},
+        {"confidence": "high"},
+        {"mitigation_steps": "not a list"},
         {},
     ],
-    ids=["root_cause-numerico", "confidence-string", "steps-no-lista", "vacio"],
+    ids=["root_cause-numeric", "confidence-string", "steps-not-a-list", "empty"],
 )
-def test_argumentos_invalidos_no_propagan_excepcion(fake_llm, args_invalidos):
-    fake_llm([submit(args_invalidos)])
+def test_invalid_arguments_do_not_propagate_an_exception(fake_llm, invalid_args):
+    fake_llm([submit(invalid_args)])
 
-    respuesta = loop.handle(TICKET)
+    response = loop.handle(TICKET)
 
-    assert respuesta.diagnosis == loop.NO_DIAGNOSIS
-    assert [step.via for step in respuesta.evidence] == ["error"] * len(
-        respuesta.evidence
+    assert response.diagnosis == loop.NO_DIAGNOSIS
+    assert [step.via for step in response.evidence] == ["error"] * len(
+        response.evidence
     )
-    assert respuesta.evidence, "el intento fallido no quedo en la evidencia"
+    assert response.evidence, "the failed attempt did not land in the evidence"
 
 
-def test_no_diagnostica_en_el_mismo_turno_que_busca(fake_llm, monkeypatch, citas):
+def test_does_not_diagnose_in_the_same_turn_it_searches(fake_llm, monkeypatch, citations):
     monkeypatch.setattr(loop, "run_tool", lambda name, args: ([{"id": "i1"}], "mcp"))
-    turno_mezclado = Turn(
+    mixed_turn = Turn(
         tool_uses=[
-            ToolUse(id="busca", name="search_memory", args={"symptom": "x"}),
-            ToolUse(id="diagnostica", name="submit_diagnosis", args=VALIDO),
+            ToolUse(id="search", name="search_memory", args={"symptom": "x"}),
+            ToolUse(id="diagnose", name="submit_diagnosis", args=VALID),
         ]
     )
-    llm = fake_llm([turno_mezclado, submit(VALIDO, use_id="tarde")])
+    llm = fake_llm([mixed_turn, submit(VALID, use_id="late")])
 
-    respuesta = loop.handle(TICKET)
+    response = loop.handle(TICKET)
 
-    postergados = [
+    deferred = [
         result
         for message in llm.calls[1]
         for result in message.tool_results
-        if result.id == "diagnostica"
+        if result.id == "diagnose"
     ]
-    assert postergados, "el submit_diagnosis prematuro no recibio su tool_result"
-    assert "descarto" in str(postergados[0].content)
+    assert deferred, "the premature submit_diagnosis did not get its tool_result"
+    assert deferred[0].content == loop.PREMATURE_DIAGNOSIS
 
-    assert respuesta.diagnosis.root_cause == "Pool de conexiones agotado"
-    assert [step.tool for step in respuesta.evidence] == ["search_memory"]
+    assert response.diagnosis.root_cause == "Connection pool exhausted"
+    assert [step.tool for step in response.evidence] == ["search_memory"]
 
 
-def test_el_modelo_recibe_el_error_y_se_corrige(fake_llm):
-    llm = fake_llm([submit({"root_cause": 123}), submit(VALIDO, use_id="use-2")])
+def test_the_model_receives_the_error_and_corrects_itself(fake_llm):
+    llm = fake_llm([submit({"root_cause": 123}), submit(VALID, use_id="use-2")])
 
-    respuesta = loop.handle(TICKET)
+    response = loop.handle(TICKET)
 
-    assert respuesta.diagnosis.root_cause == "Pool de conexiones agotado"
+    assert response.diagnosis.root_cause == "Connection pool exhausted"
 
-    segunda_llamada = llm.calls[1]
-    errores = [
+    second_call = llm.calls[1]
+    errors = [
         result
-        for message in segunda_llamada
+        for message in second_call
         for result in message.tool_results
         if "error" in str(result.content)
     ]
-    assert errores, "el error de validacion no volvio al modelo como tool_result"
-    assert errores[0].id == "use-1"
+    assert errors, "the validation error did not go back to the model as a tool_result"
+    assert errors[0].id == "use-1"
 
 
-def busca(use_id: str) -> Turn:
+def search(use_id: str) -> Turn:
     return Turn(tool_uses=[ToolUse(id=use_id, name="search_memory", args={"symptom": "x"})])
 
 
-def test_cita_una_sola_vez_por_diagnostico_sin_repetir_ids(fake_llm, monkeypatch, citas):
+def test_cites_once_per_diagnosis_without_repeating_ids(fake_llm, monkeypatch, citations):
     monkeypatch.setattr(
         loop, "run_tool", lambda name, args: ([{"id": "i1"}, {"id": "i2"}], "mcp")
     )
-    fake_llm([busca("b1"), busca("b2"), submit(VALIDO)])
+    fake_llm([search("b1"), search("b2"), submit(VALID)])
 
     loop.handle(TICKET)
 
-    assert citas == [["i1", "i2"]]
+    assert citations == [["i1", "i2"]]
 
 
-def test_sin_memoria_recuperada_no_cita(fake_llm, citas):
-    fake_llm([submit(VALIDO)])
+def test_without_recalled_memory_it_does_not_cite(fake_llm, citations):
+    fake_llm([submit(VALID)])
 
     loop.handle(TICKET)
 
-    assert citas == [[]]
+    assert citations == [[]]
 
 
-def test_turno_de_solo_texto_pide_el_diagnostico_en_vez_de_cortar(fake_llm, citas):
-    llm = fake_llm([Turn(text="Estoy pensando."), submit(VALIDO)])
+def test_a_text_only_turn_asks_for_the_diagnosis_instead_of_stopping(fake_llm, citations):
+    llm = fake_llm([Turn(text="I am thinking."), submit(VALID)])
 
-    respuesta = loop.handle(TICKET)
+    response = loop.handle(TICKET)
 
-    assert respuesta.diagnosis.root_cause == "Pool de conexiones agotado"
-    textos = [m.text for m in llm.calls[1] if m.text]
-    assert loop.PEDIDO_DE_DIAGNOSTICO in textos
+    assert response.diagnosis.root_cause == "Connection pool exhausted"
+    texts = [m.text for m in llm.calls[1] if m.text]
+    assert loop.DIAGNOSIS_REQUEST in texts
 
 
-def test_solo_texto_hasta_agotar_turnos_si_da_no_diagnosis(fake_llm, citas):
-    llm = fake_llm([Turn(text="Sigo pensando.")])
+def test_text_only_until_turns_run_out_gives_no_diagnosis(fake_llm, citations):
+    llm = fake_llm([Turn(text="Still thinking.")])
 
-    respuesta = loop.handle(TICKET)
+    response = loop.handle(TICKET)
 
-    assert respuesta.diagnosis == loop.NO_DIAGNOSIS
+    assert response.diagnosis == loop.NO_DIAGNOSIS
     assert len(llm.calls) == settings.agent_max_turns
 
 
-def test_los_resultados_de_error_viajan_marcados(fake_llm, monkeypatch, citas):
-    def explota(name, args):
-        raise RuntimeError("la tool fallo")
+def test_error_results_are_marked_is_error(fake_llm, monkeypatch, citations):
+    def raises(name, args):
+        raise RuntimeError("the tool failed")
 
-    monkeypatch.setattr(loop, "run_tool", explota)
-    llm = fake_llm([busca("b1"), submit(VALIDO)])
+    monkeypatch.setattr(loop, "run_tool", raises)
+    llm = fake_llm([search("b1"), submit(VALID)])
 
     loop.handle(TICKET)
 
-    marcados = [
+    flagged = [
         r for m in llm.calls[1] for r in m.tool_results if r.id == "b1"
     ]
-    assert marcados and marcados[0].is_error is True
+    assert flagged and flagged[0].is_error is True

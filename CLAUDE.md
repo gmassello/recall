@@ -2,111 +2,115 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Comandos
+## Commands
 
-Todo se corre desde `backend/` con el venv local (`.venv/bin/...`):
+Everything runs from `backend/` with the local venv (`.venv/bin/...`):
 
 ```bash
 .venv/bin/pip install -r requirements.txt
-.venv/bin/python -m app.db              # crea/actualiza el schema en Cockroach
-.venv/bin/python -m seed.seed_memory    # carga incidentes + tickets de ejemplo (idempotente por external_id)
+.venv/bin/python -m app.db              # creates/updates the schema in Cockroach
+.venv/bin/python -m seed.seed_memory    # loads example incidents + tickets (idempotent by external_id)
 .venv/bin/uvicorn app.main:app --reload # http://localhost:8000/docs
 
-.venv/bin/pytest                        # suite completa (no necesita DB ni AWS)
-.venv/bin/pytest tests/test_ranking.py::test_x   # un solo test
+.venv/bin/pytest                        # full suite (needs neither DB nor AWS)
+.venv/bin/pytest tests/test_ranking.py::test_x   # a single test
 .venv/bin/ruff check .
 ```
 
-Frontend desde `frontend/`:
+Frontend from `frontend/`:
 
 ```bash
 npm install
-npm run dev     # http://localhost:5173, proxy /api → :8000
-npm run build   # tsc --noEmit && vite build — es el gate de type-check
+npm run dev     # http://localhost:5173, proxies /api → :8000
+npm run build   # tsc --noEmit && vite build — this is the type-check gate
 ```
 
-Los tests son unitarios puros: mockean `db` y los providers, y `tests/conftest.py`
-setea un `DATABASE_URL` dummy. No levantan Cockroach ni llaman a Bedrock.
+The tests are pure unit tests: they mock `db` and the providers, and
+`tests/conftest.py` sets a dummy `DATABASE_URL`. They never start Cockroach or
+call Bedrock.
 
-## Arquitectura
+## Architecture
 
-Backend FastAPI (Python 3.11+) de un copiloto de guardia: recibe tickets de
-incidente, los diagnostica con un agente LLM apoyado en memoria semántica de
-incidentes pasados, y cierra el ciclo escribiendo el postmortem de vuelta en esa
-memoria. El frontend (`frontend/`, React + Vite + TS, :5173) tiene tres vistas —
-cola de tickets, vista de incidente y explorador de memoria — sin router ni
-state manager: todo con `useState` y `fetch`, proxy `/api` → `:8000`.
+FastAPI backend (Python 3.11+) for an on-call copilot: it receives incident
+tickets, diagnoses them with an LLM agent backed by semantic memory of past
+incidents, and closes the loop by writing the postmortem back into that memory.
+The frontend (`frontend/`, React + Vite + TS, :5173) has three views — ticket
+queue, incident view and memory explorer — with no router and no state manager:
+everything is `useState` and `fetch`, proxying `/api` → `:8000`.
 
-Flujo central: `POST /tickets/{id}/handle` → `agent/loop.handle()` → el LLM llama
-`search_memory` / `query_incidents` → termina con `submit_diagnosis`. Luego un
-humano hace `POST /incidents/{id}/resolve`, que vuelve a embeber el incidente
-resuelto en `incidents` (`postmortem.write_postmortem`).
+Core flow: `POST /tickets/{id}/handle` → `agent/loop.handle()` → the LLM calls
+`search_memory` / `query_incidents` → it ends with `submit_diagnosis`. Then a
+human calls `POST /incidents/{id}/resolve`, which re-embeds the resolved incident
+into `incidents` (`postmortem.write_postmortem`).
 
-Variante streaming: `GET /tickets/{id}/handle/stream` (SSE, es GET porque el
-`EventSource` del browser solo soporta GET). El nucleo del loop es el generador
-`loop.handle_events()`, que emite `("evidence", EvidenceStep)` por cada tool
-ejecutada y un `("result", HandleResponse)` final; `handle()` es un wrapper que
-lo consume. El frontend (`IncidentView`) consume el stream y pinta el timeline
-de evidencia en vivo. Al tocar el loop, mantener el contrato de eventos: ambos
-endpoints comparten el mismo generador.
+Streaming variant: `GET /tickets/{id}/handle/stream` (SSE, a GET because the
+browser `EventSource` only supports GET). The core of the loop is the
+`loop.handle_events()` generator, which emits `("evidence", EvidenceStep)` for
+every tool executed and a final `("result", HandleResponse)`; `handle()` is a
+wrapper that consumes it. The frontend (`IncidentView`) consumes the stream and
+paints the evidence timeline live. When touching the loop, keep the event
+contract: both endpoints share the same generator.
 
-Capas y sus límites:
+Layers and their boundaries:
 
-- `app/api/*` — routers finos, sin lógica; validación vía `app/models.py` (Pydantic).
-- `app/memory.py` — **única** capa que habla con la tabla `incidents`: recall
-  vectorial, ranking, citas, feedback, supersede.
-- `app/tickets.py` — `TicketSource` es un `Protocol`; hoy la única implementación
-  es `MockTicketSource` (DB + generador sintético). Al integrar Jira/PagerDuty se
-  agrega otra implementación, no se toca el resto.
-- `app/agent/` — `tools.py` declara los `ToolSpec` y los ejecuta; `loop.py` corre
-  el bucle de turnos. El loop es agnóstico del proveedor: habla en los dataclasses
-  de `providers/base.py` (`Message`, `ToolUse`, `ToolResult`, `Turn`).
-- `app/providers/` — `registry.py` resuelve `LLM_PROVIDER` / `EMBEDDING_PROVIDER`
-  a una implementación (import perezoso, `lru_cache`). Bedrock es el default.
-- `app/db.py` — pool psycopg + helpers `fetch` / `execute` / `render`.
-- `app/mcp/cockroach_client.py` — cliente del Managed MCP Server de Cockroach.
+- `app/api/*` — thin routers, no logic; validation via `app/models.py` (Pydantic).
+- `app/memory.py` — the **only** layer that talks to the `incidents` table: vector
+  recall, ranking, citations, feedback, supersede.
+- `app/tickets.py` — `TicketSource` is a `Protocol`; today the only implementation
+  is `MockTicketSource` (DB + synthetic generator). Integrating Jira/PagerDuty
+  means adding another implementation, not touching the rest.
+- `app/agent/` — `tools.py` declares the `ToolSpec`s and executes them; `loop.py`
+  runs the turn loop. The loop is provider agnostic: it speaks the dataclasses of
+  `providers/base.py` (`Message`, `ToolUse`, `ToolResult`, `Turn`).
+- `app/providers/` — `registry.py` resolves `LLM_PROVIDER` / `EMBEDDING_PROVIDER`
+  to an implementation (lazy import, `lru_cache`). Bedrock is the default.
+- `app/db.py` — psycopg pool + `fetch` / `execute` / `render` helpers.
+- `app/mcp/cockroach_client.py` — client for the Cockroach Managed MCP Server.
 
-### Doble ruta de lectura (MCP con fallback)
+### Dual read path (MCP with fallback)
 
-`memory._read()` intenta primero el MCP (renderizando el SQL con `db.render`) y si
-no está configurado o falla, cae a psycopg. Cada lectura devuelve `(rows, via)` con
-`via` ∈ `"mcp" | "fallback"`, y ese valor viaja hasta el `EvidenceStep` de la
-respuesta. Las **escrituras** siempre van por psycopg. Al tocar `memory.py`, mantener
-el SQL parametrizado con `%s` — `render()` depende de eso.
+`memory._read()` tries the MCP first (rendering the SQL with `db.render`) and, if
+it is not configured or fails, falls back to psycopg. Every read returns
+`(rows, via)` with `via` ∈ `"mcp" | "fallback"`, and that value travels all the
+way to the `EvidenceStep` of the response. **Writes** always go through psycopg.
+When touching `memory.py`, keep the SQL parameterized with `%s` — `render()`
+depends on that.
 
-### Ranking y vigencia
+### Ranking and validity
 
-`rank_score = distance - w_quality*quality_score + w_age*age_penalty` (menor es
-mejor). El `ORDER BY embedding <=> %s::VECTOR(n)` debe quedar textualmente así para
-que el índice vectorial de Cockroach lo acelere; el re-ranking se hace en Python
-sobre `recall_candidates` y se corta en `recall_top_k`.
+`rank_score = distance - w_quality*quality_score + w_age*age_penalty` (lower is
+better). The `ORDER BY embedding <=> %s::VECTOR(n)` must stay textually like that
+so the Cockroach vector index can accelerate it; the re-ranking happens in Python
+over `recall_candidates` and is cut at `recall_top_k`.
 
-Un incidente está vigente si `valid_until` es nulo o futuro y `superseded_by` es
-nulo. Esa condición vive duplicada a propósito en dos lugares —
-`CURRENT_SQL_FILTER` (SQL) e `is_current()` (Python, para lo que vuelve del MCP);
-si cambia una, cambia la otra. `tests/test_recall_sql.py` y `test_recall_filters.py`
-son el gate.
+An incident is current if `valid_until` is null or in the future and
+`superseded_by` is null. That condition is duplicated on purpose in two places —
+`CURRENT_SQL_FILTER` (SQL) and `validity_of()` (Python, for whatever comes back
+from the MCP); if one changes, the other changes too. `is_recallable()` builds on
+`validity_of()` and additionally requires the row to carry a `distance`. `tests/test_recall_sql.py`
+and `test_recall_filters.py` are the gate.
 
-### Contrato del agente
+### Agent contract
 
-`Diagnosis` se valida con Pydantic contra lo que devuelve `submit_diagnosis`; si no
-valida, el error se le devuelve al modelo como `tool_result` con `is_error` y sigue
-el bucle. Si `submit_diagnosis` llega en el mismo turno que otras tools, se descarta
-(el modelo no vio los resultados aún). Agotados los `agent_max_turns` se devuelve
-`NO_DIAGNOSIS` con `confidence=0.0`. La regla de producto: sin antecedentes en
-memoria, hay que decirlo, no inventar causa raíz.
+`Diagnosis` is validated with Pydantic against whatever `submit_diagnosis`
+returns; if it does not validate, the error goes back to the model as a
+`tool_result` with `is_error` and the loop continues. If `submit_diagnosis`
+arrives in the same turn as other tools, it is discarded (the model has not seen
+the results yet). Once `agent_max_turns` is exhausted, `NO_DIAGNOSIS` is returned
+with `confidence=0.0`. The product rule: with no precedent in memory, the agent
+has to say so, not invent a root cause.
 
-## Convenciones del repo
+## Repo conventions
 
-- Los prompts, mensajes de log y nombres de test están en español, sin tildes en el
-  código. Seguir ese estilo.
-- Las dimensiones del embedding (`embedding_dims=1024`) tienen que coincidir con el
-  `VECTOR(1024)` de `schema.sql`: cambiar de modelo de embeddings implica migrar la
-  tabla.
-- `BEDROCK_MODEL_ID` requiere prefijo de inference profile acorde a `AWS_REGION`
-  (`us.`, `eu.`, `au.`, `jp.`, `global.`); el ID desnudo falla. Los modelos de
-  embedding, en cambio, van con ID desnudo. Detalle en `.env.example` y §7 de la doc.
-- `frontend/src/types.ts` espeja los modelos Pydantic de `app/models.py`: si
-  cambia un modelo que viaja por la API, actualizar ambos lados.
-- `docs/recall-DOCUMENTATION.md` es la referencia larga (modelo de datos,
-  API, variables de entorno, roadmap).
+- Code, prompts, log messages, UI strings and test names are all in English.
+  Follow that style.
+- The embedding dimensions (`embedding_dims=1024`) have to match the
+  `VECTOR(1024)` in `schema.sql`: changing the embedding model means migrating
+  the table.
+- `BEDROCK_MODEL_ID` requires an inference profile prefix matching `AWS_REGION`
+  (`us.`, `eu.`, `au.`, `jp.`, `global.`); the bare ID fails. Embedding models,
+  on the other hand, use the bare ID. Details in `.env.example` and §7 of the docs.
+- `frontend/src/types.ts` mirrors the Pydantic models in `app/models.py`: if a
+  model that travels over the API changes, update both sides.
+- `docs/recall-DOCUMENTATION.md` is the long-form reference (data model, API,
+  environment variables, roadmap).

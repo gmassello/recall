@@ -8,71 +8,71 @@ from app.providers.anthropic_provider import AnthropicProvider, _to_anthropic_me
 from app.providers.bedrock import _to_bedrock_message
 from app.providers.base import Message, ToolResult
 
-FILAS = [{"id": "i1", "title": "Pool agotado", "score": 0.31, "root_cause": None}]
+ROWS = [{"id": "i1", "title": "Pool exhausted", "score": 0.31, "root_cause": None}]
 
 
-def _bloque_tool_result(content):
+def _tool_result_block(content):
     message = Message(role="user", tool_results=[ToolResult(id="u1", content=content)])
     return _to_anthropic_message(message)["content"][0]
 
 
-def test_el_tool_result_viaja_como_json_y_no_como_repr_de_python():
-    bloque = _bloque_tool_result(FILAS)
+def test_the_tool_result_is_serialized_as_json_not_a_python_repr():
+    block = _tool_result_block(ROWS)
 
-    assert json.loads(bloque["content"]) == FILAS
-    assert "'" not in bloque["content"]
-    assert "None" not in bloque["content"]
-
-
-def test_un_content_string_pasa_sin_tocar():
-    assert _bloque_tool_result("ya es texto")["content"] == "ya es texto"
+    assert json.loads(block["content"]) == ROWS
+    assert "'" not in block["content"]
+    assert "None" not in block["content"]
 
 
-def test_los_tool_results_van_antes_del_texto():
+def test_a_string_content_passes_through_untouched():
+    assert _tool_result_block("already text")["content"] == "already text"
+
+
+def test_the_tool_results_come_before_the_text():
     message = Message(
         role="user",
-        text="un texto",
-        tool_results=[ToolResult(id="u1", content=FILAS)],
+        text="some text",
+        tool_results=[ToolResult(id="u1", content=ROWS)],
     )
-    tipos = [bloque["type"] for bloque in _to_anthropic_message(message)["content"]]
+    types_ = [block["type"] for block in _to_anthropic_message(message)["content"]]
 
-    assert tipos.index("tool_result") < tipos.index("text")
+    assert types_.index("tool_result") < types_.index("text")
 
 
-def test_el_error_viaja_marcado_en_anthropic():
+def test_anthropic_marks_the_error_result():
     message = Message(role="user", tool_results=[ToolResult(id="u1", content={}, is_error=True)])
-    bloque = _to_anthropic_message(message)["content"][0]
+    block = _to_anthropic_message(message)["content"][0]
 
-    assert bloque["is_error"] is True
+    assert block["is_error"] is True
 
 
 @pytest.mark.parametrize(
-    "stop_reason,esperado",
+    "stop_reason,expected",
     [("max_tokens", True), ("tool_use", False)],
 )
-def test_anthropic_tambien_reporta_el_truncado_en_el_turno(
-    monkeypatch, stop_reason, esperado
+def test_anthropic_also_reports_truncation_in_the_turn(
+    monkeypatch, stop_reason, expected
 ):
-    respuesta = types.SimpleNamespace(stop_reason=stop_reason, content=[])
-    cliente = types.SimpleNamespace(
-        messages=types.SimpleNamespace(create=lambda **kw: respuesta)
+    response = types.SimpleNamespace(stop_reason=stop_reason, content=[])
+    client = types.SimpleNamespace(
+        messages=types.SimpleNamespace(create=lambda **kw: response)
     )
     monkeypatch.setattr(anthropic_provider.settings, "anthropic_api_key", "k")
-    monkeypatch.setattr(anthropic_provider.anthropic, "Anthropic", lambda **kw: cliente)
+    monkeypatch.setattr(anthropic_provider.anthropic, "Anthropic", lambda **kw: client)
 
     turn = AnthropicProvider().converse("system", [Message(role="user", text="x")], [])
 
-    assert turn.truncated is esperado
+    assert turn.truncated is expected
 
 
-def test_el_error_viaja_como_status_en_bedrock():
+def test_bedrock_marks_the_error_result_as_a_status():
     ok = ToolResult(id="u1", content={})
-    falla = ToolResult(id="u2", content={}, is_error=True)
-    message = Message(role="user", tool_results=[ok, falla])
+    failure = ToolResult(id="u2", content={}, is_error=True)
+    message = Message(role="user", tool_results=[ok, failure])
 
-    estados = [
-        bloque["toolResult"]["status"]
-        for bloque in _to_bedrock_message(message)["content"]
+    statuses = [
+        block["toolResult"]["status"]
+        for block in _to_bedrock_message(message)["content"]
     ]
 
-    assert estados == ["success", "error"]
+    assert statuses == ["success", "error"]

@@ -93,16 +93,16 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
   return (
     <section>
       <div className="section-header">
-        <button onClick={onBack}>← Volver a la cola</button>
+        <button onClick={onBack}>← Back to the queue</button>
         <button className="primary" onClick={run} disabled={handling}>
-          {handling ? 'Diagnosticando...' : 'Diagnosticar'}
+          {handling ? 'Diagnosing...' : 'Diagnose'}
         </button>
       </div>
 
       <div className="card">
         <h2>{ticket.title}</h2>
         <p className="muted">
-          {ticket.service ?? 'sin servicio'} · {ticket.severity ?? 'sin severidad'} · {ticket.status}
+          {ticket.service ?? 'no service'} · {ticket.severity ?? 'no severity'} · {ticket.status}
         </p>
         {ticket.description && <p>{ticket.description}</p>}
       </div>
@@ -111,10 +111,10 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
 
       {(handling || evidence.length > 0 || result) && (
         <div className="card">
-          <h3>Evidencia</h3>
+          <h3>Evidence</h3>
           {evidence.length === 0 ? (
             <p className="empty">
-              {handling ? 'El agente esta consultando la memoria...' : 'El agente no uso herramientas.'}
+              {handling ? 'The agent is querying memory...' : 'The agent used no tools.'}
             </p>
           ) : (
             <ol className="timeline">
@@ -123,20 +123,20 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
               ))}
             </ol>
           )}
-          {handling && evidence.length > 0 && <p className="empty">El agente sigue trabajando...</p>}
+          {handling && evidence.length > 0 && <p className="empty">The agent is still working...</p>}
         </div>
       )}
 
       {result && (
         <>
           <div className="card">
-            <h3>Diagnostico</h3>
+            <h3>Diagnosis</h3>
             <p>
-              <strong>Causa raiz:</strong> {result.diagnosis.root_cause}
+              <strong>Root cause:</strong> {result.diagnosis.root_cause}
             </p>
             {result.diagnosis.mitigation_steps.length > 0 && (
               <>
-                <strong>Mitigacion:</strong>
+                <strong>Mitigation:</strong>
                 <ul>
                   {result.diagnosis.mitigation_steps.map((s, idx) => (
                     <li key={idx}>{s}</li>
@@ -145,7 +145,7 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
               </>
             )}
             <p>
-              <strong>Confianza:</strong> {(result.diagnosis.confidence * 100).toFixed(0)}%
+              <strong>Confidence:</strong> {(result.diagnosis.confidence * 100).toFixed(0)}%
             </p>
             <div className="confidence-bar">
               <div style={{ width: `${result.diagnosis.confidence * 100}%` }} />
@@ -154,23 +154,23 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
 
           {result.most_relevant_incident && (
             <div className="card">
-              <h3>Incidente mas relevante</h3>
+              <h3>Most relevant incident</h3>
               <p>
                 {result.most_relevant_incident.title}{' '}
                 <span className="muted">(score {result.most_relevant_incident.score.toFixed(3)})</span>
               </p>
               <div className="actions">
                 <button onClick={() => vote(true)} disabled={!!feedback}>
-                  👍 Me ayudo
+                  👍 It helped
                 </button>
                 <button onClick={() => vote(false)} disabled={!!feedback}>
-                  👎 No sirvio
+                  👎 Not useful
                 </button>
               </div>
               {feedback && (
                 <p className="muted">
-                  Feedback registrado: calidad {feedback.quality_score.toFixed(2)} · {feedback.times_helpful}{' '}
-                  votos utiles
+                  Feedback recorded: quality {feedback.quality_score.toFixed(2)} · {feedback.times_helpful}{' '}
+                  helpful votes
                 </p>
               )}
             </div>
@@ -179,28 +179,28 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
       )}
 
       <div className="card">
-        <h3>Resolver incidente</h3>
+        <h3>Resolve incident</h3>
         {resolved ? (
           <p>
-            Postmortem guardado como <code>{resolved.incident_id}</code>
+            Postmortem saved as <code>{resolved.incident_id}</code>
             {resolved.superseded && (
               <>
-                {' '}· reemplaza a <code>{resolved.superseded}</code>
+                {' '}· supersedes <code>{resolved.superseded}</code>
               </>
             )}
           </p>
         ) : (
           <div className="form">
             <label>
-              Causa raiz
+              Root cause
               <textarea value={rootCause} onChange={(e) => setRootCause(e.target.value)} rows={2} />
             </label>
             <label>
-              Resolucion
+              Resolution
               <textarea value={resolution} onChange={(e) => setResolution(e.target.value)} rows={2} />
             </label>
             <label>
-              Reemplaza a (id de incidente, opcional)
+              Supersedes (incident id, optional)
               <input value={supersedes} onChange={(e) => setSupersedes(e.target.value)} />
             </label>
             <button
@@ -208,7 +208,7 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
               onClick={resolve}
               disabled={resolving || !rootCause.trim() || !resolution.trim()}
             >
-              {resolving ? 'Guardando...' : 'Resolver y escribir postmortem'}
+              {resolving ? 'Saving...' : 'Resolve and write postmortem'}
             </button>
           </div>
         )}

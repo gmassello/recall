@@ -13,7 +13,7 @@ _DROP_KEYS = {"default", "title", "additionalProperties", "$schema"}
 
 def _client(purpose: str) -> genai.Client:
     if not settings.gemini_api_key:
-        raise RuntimeError(f"GEMINI_API_KEY es obligatoria con {purpose}")
+        raise RuntimeError(f"GEMINI_API_KEY is required with {purpose}")
     return genai.Client(api_key=settings.gemini_api_key)
 
 

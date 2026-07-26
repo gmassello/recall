@@ -30,15 +30,15 @@ def required_fields(model) -> set[str]:
     ],
     ids=["Ticket", "Incident", "FeedbackResponse"],
 )
-def test_el_sql_devuelve_todo_lo_que_el_modelo_exige(columns, model):
+def test_the_sql_returns_everything_the_model_requires(columns, model):
     assert not required_fields(model) - aliases(columns)
 
 
-def test_el_cast_a_vector_lleva_la_dimension_de_la_config():
+def test_the_vector_cast_carries_the_dimension_from_the_config():
     assert VECTOR_CAST == f"::VECTOR({settings.embedding_dims})"
 
 
-def test_el_sql_de_recall_castea_con_dimension():
+def test_the_recall_sql_casts_with_the_dimension():
     sql, _ = _recall_sql([0.1] * settings.embedding_dims, None)
 
     assert VECTOR_CAST in sql

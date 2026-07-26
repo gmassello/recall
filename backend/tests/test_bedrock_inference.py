@@ -4,9 +4,9 @@ from app.config import settings
 from app.providers import bedrock
 from app.providers.base import Message, ToolSpec
 
-TOOLS = [ToolSpec(name="search_memory", description="busca", input_schema={})]
+TOOLS = [ToolSpec(name="search_memory", description="searches", input_schema={})]
 
-MENSAJES = [Message(role="user", text="hola")]
+MESSAGES = [Message(role="user", text="hello")]
 
 
 class FakeClient:
@@ -18,12 +18,12 @@ class FakeClient:
         self.kwargs = kwargs
         return {
             "stopReason": self.stop_reason,
-            "output": {"message": {"content": [{"text": "listo"}]}},
+            "output": {"message": {"content": [{"text": "done"}]}},
         }
 
 
 @pytest.fixture
-def cliente(monkeypatch):
+def client(monkeypatch):
     def build(stop_reason: str = "tool_use") -> FakeClient:
         fake = FakeClient(stop_reason)
         monkeypatch.setattr(bedrock, "_client", lambda: fake)
@@ -32,21 +32,21 @@ def cliente(monkeypatch):
     return build
 
 
-def test_converse_acota_los_tokens_de_salida(cliente):
-    fake = cliente()
+def test_converse_caps_the_output_tokens(client):
+    fake = client()
 
-    bedrock.BedrockClaudeProvider().converse("system", MENSAJES, TOOLS)
+    bedrock.BedrockClaudeProvider().converse("system", MESSAGES, TOOLS)
 
     assert fake.kwargs["inferenceConfig"] == {"maxTokens": settings.max_tokens}
 
 
 @pytest.mark.parametrize(
-    "stop_reason,esperado",
+    "stop_reason,expected",
     [("max_tokens", True), ("tool_use", False), ("end_turn", False)],
 )
-def test_el_truncado_viaja_en_el_turno(cliente, stop_reason, esperado):
-    cliente(stop_reason)
+def test_the_turn_reports_truncation(client, stop_reason, expected):
+    client(stop_reason)
 
-    turn = bedrock.BedrockClaudeProvider().converse("system", MENSAJES, TOOLS)
+    turn = bedrock.BedrockClaudeProvider().converse("system", MESSAGES, TOOLS)
 
-    assert turn.truncated is esperado
+    assert turn.truncated is expected

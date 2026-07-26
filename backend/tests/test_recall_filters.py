@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.memory import CURRENT_SQL_FILTER, is_current
+from app.memory import CURRENT_SQL_FILTER, is_recallable
 
 NOW = datetime(2026, 7, 20, tzinfo=timezone.utc)
 
@@ -13,31 +13,31 @@ def row(**overrides) -> dict:
 
 
 @pytest.mark.parametrize(
-    "candidate,esperado",
+    "candidate,expected",
     [
         (row(), True),
         (row(valid_until=NOW - timedelta(days=1)), False),
         (row(valid_until=NOW + timedelta(days=1)), True),
-        (row(superseded_by="otro-uuid"), False),
+        (row(superseded_by="another-uuid"), False),
         (row(distance=None), False),
     ],
     ids=[
-        "vigente",
-        "valid_until-vencido",
-        "valid_until-futuro",
-        "reemplazado",
-        "sin-embedding",
+        "current",
+        "valid_until-expired",
+        "valid_until-future",
+        "superseded",
+        "without-embedding",
     ],
 )
-def test_vigencia_de_un_candidato(candidate, esperado):
-    assert is_current(candidate, NOW) is esperado
+def test_whether_a_candidate_is_recallable(candidate, expected):
+    assert is_recallable(candidate, NOW) is expected
 
 
-def test_valid_until_como_string_iso():
-    vencido = row(valid_until=(NOW - timedelta(days=1)).isoformat())
-    assert is_current(vencido, NOW) is False
+def test_valid_until_as_an_iso_string():
+    expired = row(valid_until=(NOW - timedelta(days=1)).isoformat())
+    assert is_recallable(expired, NOW) is False
 
 
-def test_el_filtro_sql_cubre_los_mismos_campos_que_el_predicado():
+def test_the_sql_filter_covers_the_same_fields_as_the_predicate():
     assert "valid_until" in CURRENT_SQL_FILTER
     assert "superseded_by" in CURRENT_SQL_FILTER

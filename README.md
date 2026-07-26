@@ -1,14 +1,14 @@
 # Recall
 
-Copiloto de guardia con memoria semántica de incidentes, construido para el
-hackathón **CockroachDB × AWS — Build with Agentic Memory**.
+On-call copilot with semantic incident memory, built for the
+**CockroachDB × AWS — Build with Agentic Memory** hackathon.
 
-Recibe tickets de incidente, los diagnostica con un agente LLM que consulta una
-memoria vectorial de incidentes pasados (CockroachDB + `VECTOR`), y cierra el
-ciclo escribiendo el postmortem de vuelta en esa memoria: cada incidente
-resuelto mejora el diagnóstico del siguiente.
+It takes in incident tickets, diagnoses them with an LLM agent that queries a
+vector memory of past incidents (CockroachDB + `VECTOR`), and closes the loop by
+writing the postmortem back into that memory: every resolved incident improves
+the diagnosis of the next one.
 
-## Arquitectura
+## Architecture
 
 ```
 frontend (React + Vite, :5173)
@@ -16,30 +16,30 @@ frontend (React + Vite, :5173)
 backend FastAPI (:8000)
         │  agent loop (Claude via Bedrock) ── search_memory / query_incidents
         ▼
-CockroachDB (tabla incidents con VECTOR(1024) + índice vectorial)
+CockroachDB (incidents table with VECTOR(1024) + vector index)
 ```
 
-- **Backend** (`backend/`): FastAPI + agente LLM. El loop del agente es agnóstico
-  del proveedor (Bedrock por default, Anthropic API como alternativa). Lecturas
-  con doble ruta: Managed MCP Server de Cockroach con fallback a psycopg.
-- **Frontend** (`frontend/`): React + Vite + TypeScript, sin dependencias extra.
-  Tres vistas: cola de tickets (alta manual o generación random, con edición y
-  borrado), vista de incidente (diagnóstico con timeline de evidencia **en vivo
-  por SSE**) y explorador de memoria (edición, borrado y supersede).
-- Referencia completa (modelo de datos, API, decisiones de diseño):
+- **Backend** (`backend/`): FastAPI + LLM agent. The agent loop is provider
+  agnostic (Bedrock by default, Anthropic API as an alternative). Reads take a
+  dual path: Cockroach Managed MCP Server with a psycopg fallback.
+- **Frontend** (`frontend/`): React + Vite + TypeScript, no extra dependencies.
+  Three views: ticket queue (manual creation or random generation, with editing
+  and deletion), incident view (diagnosis with a **live SSE** evidence timeline)
+  and memory explorer (edit, delete and supersede).
+- Full reference (data model, API, design decisions):
   [`docs/recall-DOCUMENTATION.md`](docs/recall-DOCUMENTATION.md).
 
-## Requisitos
+## Requirements
 
 - Python 3.11+
 - Node 18+
-- Un cluster de CockroachDB (Cloud serverless alcanza) con soporte `VECTOR`
-- Acceso a Bedrock, por credenciales AWS (SigV4) o por API key en
-  `BEDROCK_API_KEY`. **Los embeddings de Titan son obligatorios**: `ANTHROPIC_API_KEY`
-  solo reemplaza el LLM, no la generación de embeddings, así que sin Bedrock no se
-  puede sembrar ni escribir en memoria
+- A CockroachDB cluster (Cloud serverless is enough) with `VECTOR` support
+- Bedrock access, either through AWS credentials (SigV4) or an API key in
+  `BEDROCK_API_KEY`. **Titan embeddings are mandatory**: `ANTHROPIC_API_KEY` only
+  replaces the LLM, not embedding generation, so without Bedrock you cannot seed
+  or write to memory
 
-## Puesta en marcha
+## Getting started
 
 ### Backend
 
@@ -48,10 +48,10 @@ cd backend
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-cp .env.example .env        # completar DATABASE_URL, Cockroach MCP y acceso a Bedrock
+cp .env.example .env        # fill in DATABASE_URL, Cockroach MCP and Bedrock access
 
-.venv/bin/python -m app.db              # crea/actualiza el schema
-.venv/bin/python -m seed.seed_memory    # incidentes + tickets de ejemplo (idempotente)
+.venv/bin/python -m app.db              # creates/updates the schema
+.venv/bin/python -m seed.seed_memory    # example incidents + tickets (idempotent)
 .venv/bin/uvicorn app.main:app --reload # http://localhost:8000/docs
 ```
 
@@ -65,50 +65,63 @@ npm run dev                 # http://localhost:5173 (proxy /api → :8000)
 
 ## API
 
-| Método | Ruta | Descripción |
+| Method | Path | Description |
 |--------|------|-------------|
-| GET  | `/health` | Health check (incluye estado del MCP) |
-| GET  | `/tickets` | Cola de tickets abiertos |
-| POST | `/tickets` | Ingesta manual de un ticket |
-| POST | `/tickets/generate?n=1` | Genera `n` tickets sintéticos |
-| DELETE | `/tickets` | Vacía la cola (solo los `status != 'resolved'`) |
-| GET  | `/tickets/{id}` | Detalle de un ticket |
-| PATCH | `/tickets/{id}` | Edita título, síntoma, área o severidad |
-| DELETE | `/tickets/{id}` | Elimina un ticket |
-| POST | `/tickets/{id}/handle` | Corre el loop agéntico → diagnóstico + evidencia |
-| GET  | `/tickets/{id}/handle/stream` | Igual que `handle`, por SSE: eventos `evidence`, `result`, `agent_error` |
-| POST | `/incidents/{ticket_id}/resolve` | Escribe el postmortem (la memoria crece) |
-| POST | `/incidents/{ticket_id}/feedback` | 👍/👎 ajusta la calidad del incidente citado |
-| GET  | `/memory?service=...` | Inspección de la memoria |
-| PATCH | `/memory/{id}` | Edita un incidente (re-embebe si cambia título o síntoma) |
-| DELETE | `/memory/{id}` | Elimina un incidente |
-| DELETE | `/memory` | Borra toda la memoria |
-| POST | `/memory/{id}/supersede` | Marca un incidente como reemplazado por otro |
+| GET  | `/health` | Health check (includes MCP status) |
+| GET  | `/tickets` | Queue of open tickets |
+| POST | `/tickets` | Manual ticket ingestion |
+| POST | `/tickets/generate?n=1` | Generates `n` synthetic tickets |
+| POST | `/tickets/seed` | Loads the example incidents and tickets (idempotent) |
+| DELETE | `/tickets` | Empties the queue (only `status != 'resolved'`) |
+| GET  | `/tickets/{id}` | Ticket detail |
+| PATCH | `/tickets/{id}` | Edits title, symptom, area or severity |
+| DELETE | `/tickets/{id}` | Deletes a ticket |
+| POST | `/tickets/{id}/handle` | Runs the agent loop → diagnosis + evidence |
+| GET  | `/tickets/{id}/handle/stream` | Same as `handle`, over SSE: `evidence`, `result`, `agent_error` events |
+| POST | `/incidents/{ticket_id}/resolve` | Writes the postmortem (memory grows) |
+| POST | `/incidents/{ticket_id}/feedback` | 👍/👎 adjusts the quality of the cited incident |
+| GET  | `/memory?service=...` | Memory inspection |
+| PATCH | `/memory/{id}` | Edits an incident (re-embeds if title or symptom changes) |
+| DELETE | `/memory/{id}` | Deletes an incident |
+| DELETE | `/memory` | Wipes the whole memory |
+| POST | `/memory/{id}/supersede` | Marks an incident as superseded by another |
 
-## Flujo de demo
+## Demo flow
 
-El dataset de ejemplo es una casa de service técnico de computación y celulares:
-las áreas son `hardware-pc`, `software-pc`, `hardware-celular` y `software-celular`
-(§9 de la doc). El dominio vive entero en `TEMPLATES` y en los seeds; el resto del
-sistema es agnóstico.
+The example dataset is a computer and phone repair shop: the areas are
+`hardware-pc`, `software-pc`, `hardware-phone` and `software-phone` (§9 of the
+docs). The domain lives in `TEMPLATES`, in the seeds and in the agent prompt
+(`agent/loop.py`, `agent/tools.py`); the rest of the system is agnostic.
 
-1. **Memoria** — arranca con los incidentes sembrados.
-2. **Generar random** (o **Nuevo ticket** para cargarlo a mano) — aparece en la cola.
-3. **Diagnosticar** — el timeline muestra en vivo qué herramientas usa el agente
-   y qué recupera; al final, causa raíz + mitigación + confianza.
-4. **Resolver** — el postmortem se embebe en la memoria.
-5. **Feedback 👍** — sube el `quality_score` del incidente citado.
-6. Un segundo ticket parecido ahora rankea mejor: ese delta es la demo.
+1. **Memory** — starts with the seeded incidents.
+2. **Generate random** (or **New ticket** to enter one by hand) — it shows up in the queue.
+3. **Diagnose** — the timeline shows live which tools the agent uses and what it
+   recalls; at the end, root cause + mitigation + confidence.
+4. **Resolve** — the postmortem is embedded into memory.
+5. **Feedback 👍** — raises the `quality_score` of the cited incident.
+6. A second similar ticket now ranks better: that delta is the demo.
 
-Regla de producto: si la memoria no tiene antecedentes, el agente lo dice con
-confianza baja en lugar de inventar una causa raíz. `software-celular` no tiene
-incidentes sembrados justamente para poder mostrar ese caso.
+Product rule: if memory has no precedent, the agent says so with low confidence
+instead of making up a root cause. `software-phone` deliberately has no seeded
+incidents so that case can be shown.
+
+### Migrating an older database
+
+The service values used to be `hardware-celular` / `software-celular`. If you
+have rows from before that rename:
+
+```sql
+UPDATE incidents SET service = replace(service, '-celular', '-phone') WHERE service LIKE '%-celular';
+UPDATE tickets   SET service = replace(service, '-celular', '-phone') WHERE service LIKE '%-celular';
+```
+
+For a demo database, clearing both tables and pressing **Load examples** works too.
 
 ## Tests
 
 ```bash
 cd backend
-.venv/bin/pytest        # unitarios puros: no necesitan DB ni AWS
+.venv/bin/pytest        # pure unit tests: no DB or AWS needed
 .venv/bin/ruff check .
 
 cd ../frontend

@@ -13,14 +13,14 @@ TICKET_COLUMNS = """
 OPEN_SQL_FILTER = "status != 'resolved'"
 
 TEMPLATES = [
-    ("hardware-pc", "la notebook no enciende y no prende el led de carga", "sev1"),
-    ("hardware-pc", "se apaga sola a los {n} minutos de uso y sopla fuerte el cooler", "sev2"),
-    ("software-pc", "Windows entra en bucle de reinicio tras el ultimo update", "sev2"),
-    ("software-pc", "tarda {n} minutos en arrancar y el disco queda al 100% de uso", "sev3"),
-    ("hardware-celular", "el tactil no responde en el {pct}% de la pantalla", "sev2"),
-    ("hardware-celular", "no carga salvo que quede el cable en cierta posicion", "sev3"),
-    ("software-celular", "queda en el logo al arrancar desde hace {n} dias", "sev2"),
-    ("software-celular", "se quedo sin espacio con {gb}GB en fotos y no actualiza", "sev4"),
+    ("hardware-pc", "the laptop does not turn on and the charging led stays off", "sev1"),
+    ("hardware-pc", "it shuts down by itself after {n} minutes of use and the fan blows hard", "sev2"),
+    ("software-pc", "Windows goes into a reboot loop after the last update", "sev2"),
+    ("software-pc", "it takes {n} minutes to boot and the disk sits at 100% usage", "sev3"),
+    ("hardware-phone", "the touchscreen does not respond on {pct}% of the display", "sev2"),
+    ("hardware-phone", "it only charges if the cable is held in a certain position", "sev3"),
+    ("software-phone", "it has been stuck on the logo at boot for {n} days", "sev2"),
+    ("software-phone", "it ran out of space with {gb}GB of photos and will not update", "sev4"),
 ]
 
 
@@ -36,7 +36,7 @@ class TicketSource(Protocol):
 
     def set_status(self, ticket_id: str, status: str) -> None: ...
 
-    def update(self, ticket_id: str, cambios: dict) -> dict | None: ...
+    def update(self, ticket_id: str, changes: dict) -> dict | None: ...
 
     def delete(self, ticket_id: str) -> bool: ...
 
@@ -108,14 +108,14 @@ class MockTicketSource:
             "UPDATE tickets SET status = %s WHERE id = %s::UUID", (status, ticket_id)
         )
 
-    def update(self, ticket_id: str, cambios: dict) -> dict | None:
-        if not cambios:
+    def update(self, ticket_id: str, changes: dict) -> dict | None:
+        if not changes:
             return self.get(ticket_id)
 
-        sets = ", ".join(f"{campo} = %s" for campo in cambios)
+        sets = ", ".join(f"{field} = %s" for field in changes)
         return fetch_one(
             f"UPDATE tickets SET {sets} WHERE id = %s::UUID RETURNING {TICKET_COLUMNS}",
-            [*cambios.values(), ticket_id],
+            [*changes.values(), ticket_id],
         )
 
     def delete(self, ticket_id: str) -> bool:

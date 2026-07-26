@@ -15,14 +15,14 @@ def inspect_memory(service: str | None = None) -> list[dict]:
 def edit_memory(incident_id: str, body: IncidentUpdate) -> dict:
     row = memory.update_incident(incident_id, body.model_dump(exclude_unset=True))
     if row is None:
-        raise HTTPException(status_code=404, detail="Incidente no encontrado")
+        raise HTTPException(status_code=404, detail="Incident not found")
     return row
 
 
 @router.delete("/memory/{incident_id}", status_code=204)
 def delete_memory(incident_id: str) -> None:
     if not memory.delete_incident(incident_id):
-        raise HTTPException(status_code=404, detail="Incidente no encontrado")
+        raise HTTPException(status_code=404, detail="Incident not found")
 
 
 @router.delete("/memory")
@@ -33,4 +33,4 @@ def clear_memory() -> dict:
 @router.post("/memory/{incident_id}/supersede", status_code=204)
 def supersede_memory(incident_id: str, body: SupersedeRequest) -> None:
     if not memory.supersede(incident_id, body.new_id):
-        raise HTTPException(status_code=404, detail="Incidente no encontrado")
+        raise HTTPException(status_code=404, detail="Incident not found")

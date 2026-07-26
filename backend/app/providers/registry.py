@@ -18,7 +18,7 @@ def get_llm() -> LLMProvider:
         from app.providers.gemini_provider import GeminiProvider
 
         return GeminiProvider()
-    raise ValueError(f"LLM_PROVIDER desconocido: {settings.llm_provider}")
+    raise ValueError(f"Unknown LLM_PROVIDER: {settings.llm_provider}")
 
 
 @lru_cache(maxsize=1)
@@ -31,4 +31,4 @@ def get_embedder() -> EmbeddingProvider:
         from app.providers.gemini_provider import GeminiEmbedder
 
         return GeminiEmbedder()
-    raise ValueError(f"EMBEDDING_PROVIDER desconocido: {settings.embedding_provider}")
+    raise ValueError(f"Unknown EMBEDDING_PROVIDER: {settings.embedding_provider}")

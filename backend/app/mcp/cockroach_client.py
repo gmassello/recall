@@ -53,7 +53,7 @@ def _parse(payload: Any) -> list[dict]:
                 return _parse(value)
     if isinstance(payload, str):
         return _parse(json.loads(payload))
-    raise ValueError("Respuesta del MCP sin filas reconocibles")
+    raise ValueError("MCP response without recognizable rows")
 
 
 async def _discover(session) -> tuple[str, str, bool]:
@@ -62,9 +62,9 @@ async def _discover(session) -> tuple[str, str, bool]:
         tools = await session.list_tools()
         tool = _pick_sql_tool(tools.tools)
         if tool is None:
-            nombres = ", ".join(t.name for t in tools.tools) or "(ninguna)"
+            names = ", ".join(t.name for t in tools.tools) or "(none)"
             raise ValueError(
-                f"El MCP Server no expone una herramienta SQL. Expone: {nombres}"
+                f"The MCP Server does not expose a SQL tool. It exposes: {names}"
             )
         schema = getattr(tool, "inputSchema", None) or {}
         needs_db = "database" in schema.get("properties", {})
@@ -86,13 +86,13 @@ async def _call(sql: str) -> list[dict]:
     ):
         async with ClientSession(read, write) as session:
             await session.initialize()
-            nombre, arg, needs_db = await _discover(session)
+            name, arg, needs_db = await _discover(session)
             args = {arg: sql}
             if needs_db:
                 args["database"] = _database_name()
-            result = await session.call_tool(nombre, args)
+            result = await session.call_tool(name, args)
             if result.isError:
-                raise ValueError(f"El MCP devolvio error para: {sql[:120]}")
+                raise ValueError(f"The MCP returned an error for: {sql[:120]}")
             if result.structuredContent is not None:
                 return _parse(result.structuredContent)
             texts = [c.text for c in result.content if getattr(c, "text", None)]
@@ -107,16 +107,16 @@ def run_sql(sql: str) -> list[dict] | None:
     try:
         return _run(sql)
     except Exception as exc:
-        log.error("MCP configurado pero no responde, se usa psycopg: %s", exc)
+        log.error("MCP configured but not responding, falling back to psycopg: %s", exc)
         return None
 
 
 def probe() -> str:
     if not is_configured():
-        return "no configurado"
+        return "not configured"
     try:
         _run("SELECT 1")
         return "ok"
     except Exception as exc:
-        log.warning("El probe del MCP fallo, se usa psycopg: %s", exc)
+        log.warning("The MCP probe failed, falling back to psycopg: %s", exc)
         return "fallback"

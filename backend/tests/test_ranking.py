@@ -10,27 +10,27 @@ def days_ago(n: int) -> datetime:
     return NOW - timedelta(days=n)
 
 
-def test_age_penalty_satura_en_uno():
+def test_age_penalty_saturates_at_one():
     assert age_penalty(days_ago(365), NOW) == 1.0
     assert age_penalty(days_ago(5000), NOW) == 1.0
     assert age_penalty(NOW, NOW) == 0.0
 
 
-def test_calidad_le_gana_a_recencia_con_misma_distancia():
-    viejo_bueno = rank_score(0.30, quality_score=1.0, created_at=days_ago(300))
-    reciente_malo = rank_score(0.30, quality_score=-1.0, created_at=days_ago(1))
-    assert viejo_bueno < reciente_malo
+def test_quality_beats_recency_at_the_same_distance():
+    old_and_good = rank_score(0.30, quality_score=1.0, created_at=days_ago(300))
+    recent_and_bad = rank_score(0.30, quality_score=-1.0, created_at=days_ago(1))
+    assert old_and_good < recent_and_bad
 
 
-def test_la_antiguedad_no_domina_a_la_similitud():
-    cercano_y_viejo = rank_score(0.10, quality_score=0.0, created_at=days_ago(5000))
-    lejano_y_nuevo = rank_score(0.60, quality_score=0.0, created_at=NOW)
-    assert cercano_y_viejo < lejano_y_nuevo
+def test_age_does_not_dominate_similarity():
+    close_and_old = rank_score(0.10, quality_score=0.0, created_at=days_ago(5000))
+    far_and_new = rank_score(0.60, quality_score=0.0, created_at=NOW)
+    assert close_and_old < far_and_new
 
 
-def test_menor_distancia_gana_en_igualdad_de_condiciones():
+def test_lower_distance_wins_all_else_being_equal():
     assert rank_score(0.10, 0.0, NOW) < rank_score(0.20, 0.0, NOW)
 
 
-def test_pulgar_abajo_pesa_mas_que_pulgar_arriba():
+def test_thumbs_down_weighs_more_than_thumbs_up():
     assert settings.feedback_down > settings.feedback_up

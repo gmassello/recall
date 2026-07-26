@@ -51,9 +51,9 @@ def init_schema() -> None:
         try:
             conn.execute("SET CLUSTER SETTING feature.vector_index.enabled = true")
         except psycopg.Error as exc:
-            log.warning("No se pudo habilitar feature.vector_index: %s", exc)
+            log.warning("Could not enable feature.vector_index: %s", exc)
         conn.execute(SCHEMA_PATH.read_text())
-    log.info("Schema listo")
+    log.info("Schema ready")
 
 
 if __name__ == "__main__":

@@ -36,7 +36,7 @@ def _to_anthropic_message(message: Message) -> dict[str, Any]:
 class AnthropicProvider:
     def __init__(self) -> None:
         if not settings.anthropic_api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY es obligatoria con LLM_PROVIDER=anthropic")
+            raise RuntimeError("ANTHROPIC_API_KEY is required with LLM_PROVIDER=anthropic")
         self.client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         self.model = settings.anthropic_model
 

@@ -14,7 +14,7 @@ import type { Severity, Ticket, TicketCreate, TicketStatus } from '../types'
 
 const SEV_BADGE: Record<Severity, string> = { sev1: 'bad', sev2: 'warn', sev3: '', sev4: '' }
 const STATUS_BADGE: Record<TicketStatus, string> = { open: '', handling: 'warn', resolved: 'ok' }
-const NUEVO = 'nuevo'
+const NEW = 'new'
 const POLL_MS = 5000
 
 interface Draft {
@@ -24,7 +24,7 @@ interface Draft {
   severity: Severity
 }
 
-function draftDe(t?: Ticket): Draft {
+function draftOf(t?: Ticket): Draft {
   return {
     title: t?.title ?? '',
     description: t?.description ?? '',
@@ -33,7 +33,7 @@ function draftDe(t?: Ticket): Draft {
   }
 }
 
-function bodyDe(draft: Draft): TicketCreate {
+function bodyOf(draft: Draft): TicketCreate {
   return {
     title: draft.title,
     description: draft.description || null,
@@ -44,11 +44,12 @@ function bodyDe(draft: Draft): TicketCreate {
 
 export default function TicketQueue({ onSelect }: { onSelect: (t: Ticket) => void }) {
   const [tickets, setTickets] = useState<Ticket[]>([])
-  const [abierto, setAbierto] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(null)
   const { busy, error, run } = useAsync()
 
-  const refresh = (opts?: { silent?: boolean }) =>
-    run(async () => setTickets(await listTickets()), opts)
+  const load = async () => setTickets(await listTickets())
+
+  const refresh = (opts?: { silent?: boolean }) => run(load, opts)
 
   useEffect(() => {
     refresh()
@@ -58,76 +59,79 @@ export default function TicketQueue({ onSelect }: { onSelect: (t: Ticket) => voi
     return () => clearInterval(id)
   }, [])
 
-  const conRecarga = (accion: () => Promise<unknown>) => () =>
+  const generate = () =>
     run(async () => {
-      await accion()
-      setTickets(await listTickets())
+      await generateTicket()
+      await load()
     })
 
-  const generate = conRecarga(generateTicket)
-  const seed = conRecarga(seedDemo)
+  const seed = () =>
+    run(async () => {
+      await seedDemo()
+      await load()
+    })
 
   const remove = (id: string) => {
-    if (!window.confirm('¿Eliminar este ticket de la cola?')) return
+    if (!window.confirm('Delete this ticket from the queue?')) return
     run(async () => {
-      if (abierto === id) setAbierto(null)
+      if (expanded === id) setExpanded(null)
       await deleteTicket(id)
       setTickets((prev) => prev.filter((x) => x.id !== id))
     })
   }
 
   const wipe = () => {
-    if (!window.confirm('¿Borrar TODA la cola? Esta accion no se puede deshacer.')) return
+    if (!window.confirm('Delete the WHOLE queue? This action cannot be undone.')) return
     run(async () => {
-      setAbierto(null)
+      setExpanded(null)
       await clearTickets()
       setTickets([])
     })
   }
 
   const onSaved = () => {
-    setAbierto(null)
+    setExpanded(null)
     refresh()
   }
 
-  const toggle = (id: string) => setAbierto(abierto === id ? null : id)
+  const toggle = (id: string) => setExpanded(expanded === id ? null : id)
 
   return (
     <section>
       <div className="section-header">
-        <h2>Cola de tickets</h2>
+        <h2>Ticket queue</h2>
         <div className="actions">
           <button onClick={() => refresh()} disabled={busy}>
-            Refrescar
+            Refresh
           </button>
-          <button onClick={() => toggle(NUEVO)} disabled={busy}>
-            {abierto === NUEVO ? 'Cancelar' : 'Nuevo ticket'}
+          <button onClick={() => toggle(NEW)} disabled={busy}>
+            {expanded === NEW ? 'Cancel' : 'New ticket'}
           </button>
           <button className="primary" onClick={generate} disabled={busy}>
-            {busy ? 'Generando...' : 'Generar random'}
+            {busy ? 'Generating...' : 'Generate random'}
           </button>
           <button onClick={seed} disabled={busy}>
-            Cargar ejemplos
+            Load examples
           </button>
           <button onClick={wipe} disabled={busy || tickets.length === 0}>
-            Borrar todo
+            Delete all
           </button>
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      {abierto === NUEVO && <TicketForm onSaved={onSaved} />}
+      {expanded === NEW && <TicketForm onSaved={onSaved} />}
       {tickets.length === 0 ? (
-        <p className="empty">No hay tickets. Genera uno para empezar.</p>
+        <p className="empty">No tickets. Generate one to get started.</p>
       ) : (
         <table>
           <thead>
             <tr>
-              <th>Titulo</th>
-              <th>Servicio</th>
-              <th>Severidad</th>
-              <th>Estado</th>
-              <th>Creado</th>
-              <th>Acciones</th>
+              <th>Title</th>
+              <th>Service</th>
+              <th>Severity</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -144,15 +148,15 @@ export default function TicketQueue({ onSelect }: { onSelect: (t: Ticket) => voi
                   <td onClick={(e) => e.stopPropagation()}>
                     <div className="actions">
                       <button onClick={() => toggle(t.id)} disabled={busy}>
-                        {abierto === t.id ? 'Cerrar' : 'Editar'}
+                        {expanded === t.id ? 'Close' : 'Edit'}
                       </button>
                       <button onClick={() => remove(t.id)} disabled={busy}>
-                        Eliminar
+                        Delete
                       </button>
                     </div>
                   </td>
                 </tr>
-                {abierto === t.id && (
+                {expanded === t.id && (
                   <tr>
                     <td colSpan={6}>
                       <TicketForm ticket={t} onSaved={onSaved} />
@@ -169,15 +173,15 @@ export default function TicketQueue({ onSelect }: { onSelect: (t: Ticket) => voi
 }
 
 function TicketForm({ ticket, onSaved }: { ticket?: Ticket; onSaved: () => void }) {
-  const [draft, setDraft] = useState<Draft>(() => draftDe(ticket))
+  const [draft, setDraft] = useState<Draft>(() => draftOf(ticket))
   const { busy, error, run } = useAsync()
 
-  const set = (campo: keyof Draft, value: string) =>
-    setDraft((d) => ({ ...d, [campo]: value }))
+  const set = (field: keyof Draft, value: string) =>
+    setDraft((d) => ({ ...d, [field]: value }))
 
   const save = () =>
     run(async () => {
-      const body = bodyDe(draft)
+      const body = bodyOf(draft)
       await (ticket ? updateTicket(ticket.id, body) : createTicket(body))
       onSaved()
     })
@@ -186,11 +190,11 @@ function TicketForm({ ticket, onSaved }: { ticket?: Ticket; onSaved: () => void 
     <div className="form">
       {error && <p className="error">{error}</p>}
       <label>
-        Titulo
+        Title
         <input value={draft.title} onChange={(e) => set('title', e.target.value)} />
       </label>
       <label>
-        Sintoma
+        Symptom
         <textarea
           value={draft.description}
           onChange={(e) => set('description', e.target.value)}
@@ -198,9 +202,9 @@ function TicketForm({ ticket, onSaved }: { ticket?: Ticket; onSaved: () => void 
         />
       </label>
       <label>
-        Servicio
+        Service
         <select value={draft.service} onChange={(e) => set('service', e.target.value)}>
-          <option value="">(sin area)</option>
+          <option value="">(no area)</option>
           {SERVICES.map((s) => (
             <option key={s} value={s}>
               {s}
@@ -209,7 +213,7 @@ function TicketForm({ ticket, onSaved }: { ticket?: Ticket; onSaved: () => void 
         </select>
       </label>
       <label>
-        Severidad
+        Severity
         <select value={draft.severity} onChange={(e) => set('severity', e.target.value)}>
           {SEVERITIES.map((s) => (
             <option key={s} value={s}>
@@ -219,7 +223,7 @@ function TicketForm({ ticket, onSaved }: { ticket?: Ticket; onSaved: () => void 
         </select>
       </label>
       <button className="primary" onClick={save} disabled={busy || !draft.title.trim()}>
-        {busy ? 'Guardando...' : ticket ? 'Guardar cambios' : 'Crear ticket'}
+        {busy ? 'Saving...' : ticket ? 'Save changes' : 'Create ticket'}
       </button>
     </div>
   )

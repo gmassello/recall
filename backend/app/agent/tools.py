@@ -6,17 +6,17 @@ from app.providers.base import ToolSpec
 SEARCH_MEMORY = ToolSpec(
     name="search_memory",
     description=(
-        "Busca en la memoria de reparaciones pasadas por similitud semantica con un "
-        "sintoma. Devuelve las mas relevantes ya re-rankeadas por recencia y calidad. "
-        "Las reparaciones obsoletas o reemplazadas quedan fuera."
+        "Searches the memory of past repairs by semantic similarity with a symptom. "
+        "Returns the most relevant ones already re-ranked by recency and quality. "
+        "Outdated or superseded repairs are left out."
     ),
     input_schema={
         "type": "object",
         "properties": {
-            "symptom": {"type": "string", "description": "El sintoma a buscar"},
+            "symptom": {"type": "string", "description": "The symptom to search for"},
             "service": {
                 "type": "string",
-                "description": "Opcional: acota la busqueda a un area del taller",
+                "description": "Optional: narrows the search to one shop area",
             },
         },
         "required": ["symptom"],
@@ -26,8 +26,8 @@ SEARCH_MEMORY = ToolSpec(
 QUERY_INCIDENTS = ToolSpec(
     name="query_incidents",
     description=(
-        "Consulta estructurada sobre las reparaciones: las mas recientes de un area "
-        "o de una severidad. Util para ver que se vio antes en el taller, no similitud."
+        "Structured query over the repairs: the most recent ones from an area or a "
+        "severity. Useful to see what the shop handled before, not similarity."
     ),
     input_schema={
         "type": "object",
@@ -42,9 +42,9 @@ QUERY_INCIDENTS = ToolSpec(
 SUBMIT_DIAGNOSIS = ToolSpec(
     name="submit_diagnosis",
     description=(
-        "Entrega el diagnostico final y termina. Si la memoria no aporto nada "
-        "relevante, decilo explicitamente en root_cause y usa una confidence baja: "
-        "no inventes una causa raiz."
+        "Delivers the final diagnosis and finishes. If memory contributed nothing "
+        "relevant, say so explicitly in root_cause and use a low confidence: do not "
+        "make up a root cause."
     ),
     input_schema={
         "type": "object",
@@ -69,14 +69,14 @@ def _summarize(rows: list[dict]) -> list[dict]:
 
 
 def cite_recalled(evidence: list) -> None:
-    citados = {
+    cited = {
         row["id"]
         for step in evidence
         if step.tool == SEARCH_MEMORY.name and isinstance(step.returned, list)
         for row in step.returned
         if isinstance(row, dict) and "id" in row
     }
-    memory.cite(sorted(citados))
+    memory.cite(sorted(cited))
 
 
 def run_tool(name: str, args: dict[str, Any]) -> tuple[Any, str]:
@@ -88,4 +88,4 @@ def run_tool(name: str, args: dict[str, Any]) -> tuple[Any, str]:
             args.get("service"), args.get("severity"), args.get("limit", 10)
         )
         return _summarize(rows), via
-    raise ValueError(f"Herramienta desconocida: {name}")
+    raise ValueError(f"Unknown tool: {name}")

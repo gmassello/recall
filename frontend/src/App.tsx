@@ -4,10 +4,10 @@ import TicketQueue from './components/TicketQueue'
 import IncidentView from './components/IncidentView'
 import MemoryExplorer from './components/MemoryExplorer'
 
-type Tab = 'cola' | 'memoria'
+type Tab = 'queue' | 'memory'
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('cola')
+  const [tab, setTab] = useState<Tab>('queue')
   const [ticket, setTicket] = useState<Ticket | null>(null)
 
   const switchTab = (next: Tab) => {
@@ -20,16 +20,16 @@ export default function App() {
       <header className="topbar">
         <h1>Recall</h1>
         <nav>
-          <button className={tab === 'cola' ? 'active' : ''} onClick={() => switchTab('cola')}>
-            Cola de tickets
+          <button className={tab === 'queue' ? 'active' : ''} onClick={() => switchTab('queue')}>
+            Ticket queue
           </button>
-          <button className={tab === 'memoria' ? 'active' : ''} onClick={() => switchTab('memoria')}>
-            Memoria
+          <button className={tab === 'memory' ? 'active' : ''} onClick={() => switchTab('memory')}>
+            Memory
           </button>
         </nav>
       </header>
       <main>
-        {tab === 'memoria' ? (
+        {tab === 'memory' ? (
           <MemoryExplorer />
         ) : ticket ? (
           <IncidentView ticket={ticket} onBack={() => setTicket(null)} />

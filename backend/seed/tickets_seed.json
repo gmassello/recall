@@ -1,25 +1,25 @@
 [
   {
     "external_id": "TKT-001",
-    "title": "[hardware-pc] la notebook no arranca despues de un corte de luz",
-    "description": "no enciende, no prende el led de carga ni con otro cargador",
+    "title": "[hardware-pc] the laptop will not boot after a power outage",
+    "description": "it does not turn on, the charging led stays off even with another charger",
     "service": "hardware-pc",
     "severity": "sev1",
     "source": "seed"
   },
   {
     "external_id": "TKT-002",
-    "title": "[software-pc] la PC tarda 15 minutos en llegar al escritorio",
-    "description": "arranca lentisimo y el disco queda al 100% de uso sin hacer nada",
+    "title": "[software-pc] the PC takes 15 minutes to reach the desktop",
+    "description": "it boots extremely slowly and the disk sits at 100% usage while doing nothing",
     "service": "software-pc",
     "severity": "sev2",
     "source": "seed"
   },
   {
     "external_id": "TKT-003",
-    "title": "[software-celular] el celular queda trabado en el logo",
-    "description": "desde hace 3 dias no pasa de la pantalla del logo al encender",
-    "service": "software-celular",
+    "title": "[software-phone] the phone is stuck on the logo",
+    "description": "for the last 3 days it never gets past the logo screen at boot",
+    "service": "software-phone",
     "severity": "sev2",
     "source": "seed"
   }

@@ -73,17 +73,17 @@ def _as_datetime(value) -> datetime:
     return datetime.fromisoformat(str(value))
 
 
-def vigencia_de(row: dict, now: datetime) -> str:
+def validity_of(row: dict, now: datetime) -> str:
     if row.get("superseded_by"):
         return "superseded"
     valid_until = row.get("valid_until")
     if valid_until is not None and _as_datetime(valid_until) <= now:
-        return "vencido"
-    return "vigente"
+        return "expired"
+    return "current"
 
 
-def is_current(row: dict, now: datetime) -> bool:
-    return row.get("distance") is not None and vigencia_de(row, now) == "vigente"
+def is_recallable(row: dict, now: datetime) -> bool:
+    return row.get("distance") is not None and validity_of(row, now) == "current"
 
 
 def recall(symptom: str, service: str | None = None) -> tuple[list[dict], str]:
@@ -93,7 +93,7 @@ def recall(symptom: str, service: str | None = None) -> tuple[list[dict], str]:
 
     hits = []
     for row in rows:
-        if not is_current(row, now):
+        if not is_recallable(row, now):
             continue
         row["created_at"] = _as_datetime(row["created_at"])
         row["distance"] = float(row["distance"])
@@ -213,9 +213,9 @@ def supersede(old_id: str, new_id: str) -> bool:
     return row is not None
 
 
-def _con_vigencia(row: dict | None, now: datetime | None = None) -> dict | None:
+def _with_validity(row: dict | None, now: datetime | None = None) -> dict | None:
     if row:
-        row["vigencia"] = vigencia_de(row, now or datetime.now(timezone.utc))
+        row["validity"] = validity_of(row, now or datetime.now(timezone.utc))
     return row
 
 
@@ -224,26 +224,26 @@ def get_incident(incident_id: str) -> dict | None:
         f"SELECT {MEMORY_COLUMNS} FROM incidents WHERE id = %s::UUID",
         (incident_id,),
     )
-    return _con_vigencia(row)
+    return _with_validity(row)
 
 
-def update_incident(incident_id: str, cambios: dict) -> dict | None:
-    if not cambios:
+def update_incident(incident_id: str, changes: dict) -> dict | None:
+    if not changes:
         return get_incident(incident_id)
 
     sets = []
     params: list = []
-    for campo, valor in cambios.items():
-        sets.append(f"{campo} = %s")
-        params.append(valor)
+    for field, value in changes.items():
+        sets.append(f"{field} = %s")
+        params.append(value)
 
-    if "title" in cambios or "symptom" in cambios:
-        actual = get_incident(incident_id)
-        if actual is None:
+    if "title" in changes or "symptom" in changes:
+        existing = get_incident(incident_id)
+        if existing is None:
             return None
-        title = cambios.get("title") or actual["title"]
-        symptom = cambios.get("symptom") or actual["symptom"]
-        if (title, symptom) != (actual["title"], actual["symptom"]):
+        title = changes.get("title") or existing["title"]
+        symptom = changes.get("symptom") or existing["symptom"]
+        if (title, symptom) != (existing["title"], existing["symptom"]):
             sets.append(f"embedding = %s{VECTOR_CAST}")
             params.append(to_vector_literal(_embed_incident(title, symptom)))
 
@@ -257,7 +257,7 @@ def update_incident(incident_id: str, cambios: dict) -> dict | None:
         """,
         params,
     )
-    return _con_vigencia(row)
+    return _with_validity(row)
 
 
 def delete_incident(incident_id: str) -> bool:
@@ -295,4 +295,4 @@ def list_memory(service: str | None = None, limit: int = 100) -> list[dict]:
         params,
     )
     now = datetime.now(timezone.utc)
-    return [_con_vigencia(row, now) for row in rows]
+    return [_with_validity(row, now) for row in rows]

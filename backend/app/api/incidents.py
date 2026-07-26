@@ -25,5 +25,5 @@ def feedback(ticket_id: str, body: FeedbackRequest) -> dict:
     get_ticket_or_404(ticket_id)
     updated = memory.apply_feedback(body.incident_id, body.helpful)
     if updated is None:
-        raise HTTPException(status_code=404, detail="Incidente inexistente")
+        raise HTTPException(status_code=404, detail="Incident not found")
     return updated

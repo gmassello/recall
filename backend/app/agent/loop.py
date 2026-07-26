@@ -11,37 +11,37 @@ from app.providers.registry import get_llm
 
 log = logging.getLogger(__name__)
 
-SYSTEM = """Sos el tecnico de un service de computacion y celulares. Recibis el ticket
-de un equipo que ingresa al taller y tenes que diagnosticarlo apoyandote en la memoria
-de reparaciones pasadas.
+SYSTEM = """You are the technician at a computer and phone repair shop. You get the
+ticket of a device that came into the shop and you have to diagnose it using the
+memory of past repairs.
 
-Procedimiento:
-1. Usa search_memory con el sintoma del ticket. Es tu fuente principal.
-2. Si necesitas ver que se reparo antes en esa area, usa query_incidents.
-3. Terminas SIEMPRE llamando a submit_diagnosis.
+Procedure:
+1. Use search_memory with the symptom from the ticket. It is your main source.
+2. If you need to see what was repaired before in that area, use query_incidents.
+3. You ALWAYS finish by calling submit_diagnosis.
 
-Regla que no se rompe: si la memoria no devolvio nada parecido, decilo en root_cause
-y poné una confidence baja. Un "no tengo antecedentes de esto" es una respuesta
-correcta; una causa raiz inventada no lo es."""
+The rule that never breaks: if memory returned nothing similar, say so in root_cause
+and set a low confidence. An "I have no precedent for this" is a correct answer; a
+made-up root cause is not."""
 
-SIN_RESPUESTA = "(sin contenido)"
+NO_CONTENT = "(no content)"
 
-PEDIDO_DE_DIAGNOSTICO = (
-    "No llamaste a ninguna herramienta. Si ya tenes lo necesario, llama a "
-    "submit_diagnosis; si te falta contexto, usa search_memory o query_incidents."
+DIAGNOSIS_REQUEST = (
+    "You did not call any tool. If you already have what you need, call "
+    "submit_diagnosis; if you are missing context, use search_memory or query_incidents."
 )
 
-DIAGNOSTICO_PREMATURO = {
+PREMATURE_DIAGNOSIS = {
     "error": (
-        "Llamaste a submit_diagnosis en el mismo turno que otras herramientas, "
-        "asi que todavia no viste lo que devolvieron. Se descarto el diagnostico. "
-        "Revisa los resultados de este turno y volve a llamar a submit_diagnosis."
+        "You called submit_diagnosis in the same turn as other tools, so you have "
+        "not seen what they returned yet. The diagnosis was discarded. Review the "
+        "results of this turn and call submit_diagnosis again."
     )
 }
 
 NO_DIAGNOSIS = Diagnosis(
-    root_cause="El agente no llego a un diagnostico dentro del limite de turnos.",
-    mitigation_steps=["Revisar manualmente el ticket."],
+    root_cause="The agent did not reach a diagnosis within the turn limit.",
+    mitigation_steps=["Review the ticket manually."],
     confidence=0.0,
 )
 
@@ -49,9 +49,9 @@ NO_DIAGNOSIS = Diagnosis(
 def _prompt(ticket: dict) -> str:
     return (
         f"Ticket: {ticket['title']}\n"
-        f"Servicio: {ticket.get('service') or 'desconocido'}\n"
-        f"Severidad: {ticket.get('severity') or 'desconocida'}\n"
-        f"Sintoma: {ticket.get('description') or ticket['title']}"
+        f"Service: {ticket.get('service') or 'unknown'}\n"
+        f"Severity: {ticket.get('severity') or 'unknown'}\n"
+        f"Symptom: {ticket.get('description') or ticket['title']}"
     )
 
 
@@ -85,7 +85,7 @@ def handle_events(ticket: dict) -> Iterator[AgentEvent]:
     evidence: list[EvidenceStep] = []
     diagnosis: Diagnosis | None = None
 
-    def emitir(use, returned, via: str, results: list[ToolResult]) -> EvidenceStep:
+    def emit(use, returned, via: str, results: list[ToolResult]) -> EvidenceStep:
         step = EvidenceStep(tool=use.name, via=via, args=use.args, returned=returned)
         evidence.append(step)
         results.append(
@@ -97,30 +97,28 @@ def handle_events(ticket: dict) -> Iterator[AgentEvent]:
         turn = llm.converse(SYSTEM, messages, TOOLS)
         if turn.truncated:
             log.warning(
-                "El proveedor trunco el turno en max_tokens=%s: el tool_use puede faltar",
+                "The provider truncated the turn at max_tokens=%s: the tool_use may be missing",
                 settings.max_tokens,
             )
         if not turn.tool_uses:
-            messages.append(
-                Message(role="assistant", text=turn.text or SIN_RESPUESTA)
-            )
-            messages.append(Message(role="user", text=PEDIDO_DE_DIAGNOSTICO))
+            messages.append(Message(role="assistant", text=turn.text or NO_CONTENT))
+            messages.append(Message(role="user", text=DIAGNOSIS_REQUEST))
             continue
 
         messages.append(
             Message(role="assistant", text=turn.text or None, tool_uses=turn.tool_uses)
         )
         results: list[ToolResult] = []
-        hay_otras_tools = any(
+        has_other_tools = any(
             use.name != SUBMIT_DIAGNOSIS.name for use in turn.tool_uses
         )
         for use in turn.tool_uses:
             if use.name == SUBMIT_DIAGNOSIS.name:
-                if hay_otras_tools:
+                if has_other_tools:
                     results.append(
                         ToolResult(
                             id=use.id,
-                            content=DIAGNOSTICO_PREMATURO,
+                            content=PREMATURE_DIAGNOSIS,
                             is_error=True,
                         )
                     )
@@ -128,16 +126,16 @@ def handle_events(ticket: dict) -> Iterator[AgentEvent]:
                 try:
                     diagnosis = Diagnosis.model_validate(use.args)
                 except ValidationError as exc:
-                    log.warning("submit_diagnosis con argumentos invalidos: %s", exc)
+                    log.warning("submit_diagnosis with invalid arguments: %s", exc)
                     returned = {"error": str(exc)}
-                    yield ("evidence", emitir(use, returned, "error", results))
+                    yield ("evidence", emit(use, returned, "error", results))
                 continue
             try:
                 returned, via = run_tool(use.name, use.args)
             except Exception as exc:
-                log.exception("Fallo la herramienta %s", use.name)
+                log.exception("Tool %s failed", use.name)
                 returned, via = {"error": str(exc)}, "error"
-            yield ("evidence", emitir(use, returned, via, results))
+            yield ("evidence", emit(use, returned, via, results))
 
         if diagnosis is not None:
             break

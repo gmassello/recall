@@ -19,30 +19,30 @@ def days_ago(n: int) -> datetime:
 INCIDENTS = [
     {
         "external_id": "INC-001",
-        "title": "Notebook que no enciende por fuente quemada",
-        "symptom": "la notebook no da senales de vida y no prende el led de carga",
-        "root_cause": "El cargador entregaba tension pero el jack de alimentacion de la placa estaba frio por una soldadura partida; no llegaba corriente al circuito de carga.",
-        "resolution": "Se resoldo el jack de alimentacion y se reemplazo el cargador generico por uno del voltaje correcto.",
+        "title": "Laptop that would not turn on: cracked power jack solder",
+        "symptom": "the laptop shows no sign of life and the charging led stays off",
+        "root_cause": "The charger was delivering voltage but the board power jack was dead from a cracked solder joint; no current reached the charging circuit.",
+        "resolution": "The power jack was resoldered and the generic charger replaced with one of the correct voltage.",
         "service": "hardware-pc",
         "severity": "sev1",
         "created_at": days_ago(38),
     },
     {
         "external_id": "INC-002",
-        "title": "Apagones por sobrecalentamiento con el cooler tapado",
-        "symptom": "se apaga sola a los pocos minutos de uso y el cooler sopla muy fuerte",
-        "root_cause": "El disipador estaba tapado de pelusa y la pasta termica seca; el CPU llegaba a 100 grados y cortaba por proteccion.",
-        "resolution": "Limpieza del disipador, cambio de pasta termica y prueba de estres por 40 minutos sin superar 78 grados.",
+        "title": "Shutdowns from overheating with a clogged cooler",
+        "symptom": "it shuts down by itself after a few minutes of use and the fan blows very hard",
+        "root_cause": "The heatsink was clogged with dust and the thermal paste was dry; the CPU hit 100 degrees and cut off for protection.",
+        "resolution": "Heatsink cleaning, thermal paste replacement and a 40 minute stress test that never went above 78 degrees.",
         "service": "hardware-pc",
         "severity": "sev2",
         "created_at": days_ago(95),
     },
     {
         "external_id": "INC-003",
-        "title": "Lentitud de la PC resuelta agregando memoria RAM",
-        "symptom": "la maquina va muy lenta al abrir varios programas a la vez",
-        "root_cause": "Tenia 4GB de RAM y el sistema paginaba contra el disco todo el tiempo.",
-        "resolution": "Se agrego un modulo de 8GB.",
+        "title": "PC slowness solved by adding RAM",
+        "symptom": "the machine is very slow when opening several programs at once",
+        "root_cause": "It had 4GB of RAM and the system was paging against the disk all the time.",
+        "resolution": "An 8GB module was added.",
         "service": "hardware-pc",
         "severity": "sev3",
         "created_at": days_ago(400),
@@ -50,31 +50,31 @@ INCIDENTS = [
     },
     {
         "external_id": "INC-004",
-        "title": "Bucle de reinicio de Windows tras una actualizacion",
-        "symptom": "Windows reinicia una y otra vez despues del ultimo update, sin llegar al escritorio",
-        "root_cause": "La actualizacion acumulativa quedo a medio instalar por un corte de luz y dejo el arranque inconsistente.",
-        "resolution": "Se desinstalo la actualizacion desde el entorno de recuperacion, se reparo el arranque y se volvio a aplicar el update completo.",
+        "title": "Windows reboot loop after an update",
+        "symptom": "Windows reboots over and over after the last update and never reaches the desktop",
+        "root_cause": "The cumulative update was left half installed by a power outage and made the boot inconsistent.",
+        "resolution": "The update was uninstalled from the recovery environment, the boot was repaired and the full update applied again.",
         "service": "software-pc",
         "severity": "sev2",
         "created_at": days_ago(15),
     },
     {
         "external_id": "INC-005",
-        "title": "Arranque eterno con el disco al 100 por ciento",
-        "symptom": "tarda muchisimo en arrancar y el disco queda al 100% de uso sin hacer nada",
-        "root_cause": "El disco mecanico tenia sectores reasignados y reintentaba cada lectura; el SMART ya marcaba alerta.",
-        "resolution": "Se clono el sistema a un SSD y se recuperaron los datos del usuario antes de que el disco terminara de fallar.",
+        "title": "Endless boot with the disk at 100 percent",
+        "symptom": "it takes forever to boot and the disk sits at 100% usage while doing nothing",
+        "root_cause": "The mechanical disk had reallocated sectors and retried every read; SMART was already raising an alert.",
+        "resolution": "The system was cloned to an SSD and the user data recovered before the disk failed completely.",
         "service": "software-pc",
         "severity": "sev2",
         "created_at": days_ago(60),
     },
     {
         "external_id": "INC-006",
-        "title": "Tactil sin respuesta en media pantalla tras un golpe",
-        "symptom": "el tactil no responde en una franja de la pantalla del celular",
-        "root_cause": "El golpe desplazo el conector flex del digitalizador; el panel estaba sano pero el contacto era intermitente.",
-        "resolution": "Se reasento el flex del digitalizador y se cambio el marco adhesivo para que no se vuelva a mover.",
-        "service": "hardware-celular",
+        "title": "Touchscreen dead on half the display after a drop",
+        "symptom": "the touchscreen does not respond on a strip of the phone display",
+        "root_cause": "The drop shifted the digitizer flex connector; the panel was fine but the contact was intermittent.",
+        "resolution": "The digitizer flex was reseated and the adhesive frame replaced so it would not move again.",
+        "service": "hardware-phone",
         "severity": "sev2",
         "created_at": days_ago(8),
     },
@@ -90,17 +90,17 @@ def _exists(external_id: str) -> bool:
 def seed_incidents() -> None:
     for incident in INCIDENTS:
         if _exists(incident["external_id"]):
-            log.info("%s ya existe, se omite", incident["external_id"])
+            log.info("%s already exists, skipped", incident["external_id"])
             continue
         memory.store_incident(source="seed", **incident)
-        log.info("Memoria: %s", incident["external_id"])
+        log.info("Memory: %s", incident["external_id"])
 
 
 def seed_tickets() -> None:
     path = Path(__file__).parent / "tickets_seed.json"
     for raw in json.loads(path.read_text()):
-        fila = tickets.source.ingest(TicketCreate(**raw))
-        tickets.source.set_status(fila["id"], "open")
+        row = tickets.source.ingest(TicketCreate(**raw))
+        tickets.source.set_status(row["id"], "open")
         log.info("Ticket: %s", raw["external_id"])
 
 

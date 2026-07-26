@@ -6,7 +6,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app import tickets
 from app.agent.loop import handle, handle_events
-from app.api.deps import TICKET_NO_ENCONTRADO, get_ticket_or_404
+from app.api.deps import TICKET_NOT_FOUND, get_ticket_or_404
 from app.models import (
     GeneratedTicket,
     HandleResponse,
@@ -33,8 +33,8 @@ def create_ticket(ticket: TicketCreate) -> dict:
 
 @router.post("/generate", status_code=201)
 def generate_tickets(n: int = Query(1, ge=1, le=20)) -> dict:
-    generados = [GeneratedTicket.from_row(row) for row in tickets.source.generate(n)]
-    return {"generated": generados}
+    generated = [GeneratedTicket.from_row(row) for row in tickets.source.generate(n)]
+    return {"generated": generated}
 
 
 @router.post("/seed", status_code=204)
@@ -57,14 +57,14 @@ def get_ticket(ticket_id: str) -> dict:
 def edit_ticket(ticket_id: str, body: TicketUpdate) -> dict:
     row = tickets.source.update(ticket_id, body.model_dump(exclude_unset=True))
     if row is None:
-        raise HTTPException(status_code=404, detail=TICKET_NO_ENCONTRADO)
+        raise HTTPException(status_code=404, detail=TICKET_NOT_FOUND)
     return row
 
 
 @router.delete("/{ticket_id}", status_code=204)
 def delete_ticket(ticket_id: str) -> None:
     if not tickets.source.delete(ticket_id):
-        raise HTTPException(status_code=404, detail=TICKET_NO_ENCONTRADO)
+        raise HTTPException(status_code=404, detail=TICKET_NOT_FOUND)
 
 
 @router.post("/{ticket_id}/handle", response_model=HandleResponse)
@@ -83,18 +83,18 @@ def handle_ticket_stream(ticket_id: str) -> EventSourceResponse:
     ticket = get_ticket_or_404(ticket_id)
     tickets.source.set_status(ticket_id, "handling")
 
-    def eventos() -> Iterator[dict]:
-        completo = False
+    def events() -> Iterator[dict]:
+        complete = False
         try:
             for kind, payload in handle_events(ticket):
                 exclude = {"evidence"} if kind == "result" else None
-                completo = completo or kind == "result"
+                complete = complete or kind == "result"
                 yield {"event": kind, "data": payload.model_dump_json(exclude=exclude)}
         except Exception as exc:
-            log.exception("Fallo el agente durante el stream del ticket %s", ticket_id)
+            log.exception("The agent failed while streaming ticket %s", ticket_id)
             yield {"event": "agent_error", "data": str(exc)}
         finally:
-            if not completo:
+            if not complete:
                 tickets.source.set_status(ticket_id, "open")
 
-    return EventSourceResponse(eventos())
+    return EventSourceResponse(events())

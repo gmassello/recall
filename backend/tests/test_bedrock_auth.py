@@ -4,32 +4,32 @@ from app.providers import bedrock
 from app.providers.bedrock import BEARER_TOKEN_ENV
 
 
-def _sin_cliente_real(monkeypatch):
+def _without_a_real_client(monkeypatch):
     monkeypatch.setattr(bedrock.boto3, "client", lambda *a, **kw: object())
 
 
-def test_la_key_del_env_file_se_propaga_a_la_variable_que_lee_boto3(monkeypatch):
-    _sin_cliente_real(monkeypatch)
+def test_the_key_from_the_env_file_propagates_to_the_variable_boto3_reads(monkeypatch):
+    _without_a_real_client(monkeypatch)
     monkeypatch.delenv(BEARER_TOKEN_ENV, raising=False)
-    monkeypatch.setattr(bedrock.settings, "bedrock_api_key", "ABSKdesde-env-file")
+    monkeypatch.setattr(bedrock.settings, "bedrock_api_key", "ABSKfrom-env-file")
 
     bedrock._client()
 
-    assert os.environ[BEARER_TOKEN_ENV] == "ABSKdesde-env-file"
+    assert os.environ[BEARER_TOKEN_ENV] == "ABSKfrom-env-file"
 
 
-def test_la_variable_del_entorno_le_gana_al_env_file(monkeypatch):
-    _sin_cliente_real(monkeypatch)
-    monkeypatch.setenv(BEARER_TOKEN_ENV, "ABSKdesde-el-shell")
-    monkeypatch.setattr(bedrock.settings, "bedrock_api_key", "ABSKdesde-env-file")
+def test_the_environment_variable_beats_the_env_file(monkeypatch):
+    _without_a_real_client(monkeypatch)
+    monkeypatch.setenv(BEARER_TOKEN_ENV, "ABSKfrom-the-shell")
+    monkeypatch.setattr(bedrock.settings, "bedrock_api_key", "ABSKfrom-env-file")
 
     bedrock._client()
 
-    assert os.environ[BEARER_TOKEN_ENV] == "ABSKdesde-el-shell"
+    assert os.environ[BEARER_TOKEN_ENV] == "ABSKfrom-the-shell"
 
 
-def test_sin_key_configurada_no_se_toca_el_entorno(monkeypatch):
-    _sin_cliente_real(monkeypatch)
+def test_without_a_configured_key_the_environment_is_left_alone(monkeypatch):
+    _without_a_real_client(monkeypatch)
     monkeypatch.delenv(BEARER_TOKEN_ENV, raising=False)
     monkeypatch.setattr(bedrock.settings, "bedrock_api_key", "")
 

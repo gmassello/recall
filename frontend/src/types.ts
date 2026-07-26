@@ -1,6 +1,6 @@
 export type Severity = 'sev1' | 'sev2' | 'sev3' | 'sev4'
 export const SEVERITIES: Severity[] = ['sev1', 'sev2', 'sev3', 'sev4']
-export const SERVICES: string[] = ['hardware-pc', 'software-pc', 'hardware-celular', 'software-celular']
+export const SERVICES: string[] = ['hardware-pc', 'software-pc', 'hardware-phone', 'software-phone']
 export type TicketStatus = 'open' | 'handling' | 'resolved'
 
 export interface Ticket {
@@ -24,7 +24,7 @@ export interface TicketCreate {
 
 export type TicketUpdate = Partial<TicketCreate>
 
-export type Vigencia = 'vigente' | 'vencido' | 'superseded'
+export type Validity = 'current' | 'expired' | 'superseded'
 
 export interface Incident {
   id: string
@@ -42,7 +42,7 @@ export interface Incident {
   times_cited: number
   times_helpful: number
   source: string
-  vigencia: Vigencia
+  validity: Validity
 }
 
 export interface IncidentUpdate {
