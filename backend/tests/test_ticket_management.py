@@ -48,7 +48,7 @@ def test_deleting_removes_by_id(captured):
     assert params == ["t1"]
 
 
-def test_seeding_tickets_reopens_them_so_they_return_to_the_queue(monkeypatch):
+def test_seeding_tickets_applies_the_status_of_the_fixture(monkeypatch):
     states: list[tuple[str, str]] = []
     double = SimpleNamespace(
         ingest=lambda ticket: {"id": ticket.external_id},
@@ -58,7 +58,9 @@ def test_seeding_tickets_reopens_them_so_they_return_to_the_queue(monkeypatch):
 
     seed_memory.seed_tickets()
 
-    assert states == [("TKT-001", "open"), ("TKT-002", "open"), ("TKT-003", "open")]
+    assert ("TKT-001", "open") in states
+    assert ("TKT-011", "handling") in states
+    assert {status for _, status in states} == {"open", "handling"}
 
 
 def test_clearing_uses_the_same_filter_as_the_queue(captured):

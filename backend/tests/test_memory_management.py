@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app import memory
+from seed import seed_memory
 
 ROW = {
     "id": "abc",
@@ -88,6 +89,39 @@ def test_deleting_clears_dangling_superseded_by(captured):
     assert "SET superseded_by = NULL" in cleanup_sql
     assert "WHERE superseded_by = %s" in cleanup_sql
     assert "DELETE FROM incidents WHERE id = %s" in delete_sql
+
+
+def test_seeding_applies_the_stats_and_the_chain_outside_store_incident(monkeypatch):
+    store = MagicMock(return_value="id-new")
+    update, chain = MagicMock(), MagicMock()
+    monkeypatch.setattr(
+        seed_memory.memory, "ids_by_external_id", lambda ids: {"INC-old": "id-old"}
+    )
+    monkeypatch.setattr(seed_memory.memory, "store_incident", store)
+    monkeypatch.setattr(seed_memory.memory, "update_incident", update)
+    monkeypatch.setattr(seed_memory.memory, "supersede", chain)
+    monkeypatch.setattr(
+        seed_memory,
+        "INCIDENTS",
+        [
+            {
+                "external_id": "INC-new",
+                "title": "t",
+                "symptom": "s",
+                "quality_score": 0.5,
+                "times_cited": 3,
+                "supersedes": "INC-old",
+            }
+        ],
+    )
+
+    seed_memory.seed_incidents()
+
+    store.assert_called_once_with(
+        source="seed", external_id="INC-new", title="t", symptom="s"
+    )
+    update.assert_called_once_with("id-new", {"quality_score": 0.5, "times_cited": 3})
+    chain.assert_called_once_with("id-old", "id-new")
 
 
 def test_clearing_everything_returns_the_count(captured):

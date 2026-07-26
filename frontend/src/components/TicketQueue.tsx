@@ -111,7 +111,7 @@ export default function TicketQueue({ onSelect }: { onSelect: (t: Ticket) => voi
             {busy ? 'Generating...' : 'Generate random'}
           </button>
           <button onClick={seed} disabled={busy}>
-            Load examples
+            {busy ? 'Loading...' : 'Load examples'}
           </button>
           <button onClick={wipe} disabled={busy || tickets.length === 0}>
             Delete all

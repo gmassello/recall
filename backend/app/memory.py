@@ -219,6 +219,14 @@ def _with_validity(row: dict | None, now: datetime | None = None) -> dict | None
     return row
 
 
+def ids_by_external_id(external_ids: list[str]) -> dict[str, str]:
+    rows = fetch(
+        "SELECT external_id, id::STRING AS id FROM incidents WHERE external_id = ANY(%s)",
+        (external_ids,),
+    )
+    return {row["external_id"]: row["id"] for row in rows}
+
+
 def get_incident(incident_id: str) -> dict | None:
     row = fetch_one(
         f"SELECT {MEMORY_COLUMNS} FROM incidents WHERE id = %s::UUID",

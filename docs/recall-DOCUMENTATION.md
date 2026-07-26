@@ -56,7 +56,7 @@ Principles that do not break:
 
   ```
   score = cosine_distance − W_QUALITY·quality_score + W_AGE·(age_days / 365)
-  W_QUALITY = 0.15    W_AGE = 0.10    k = 20 → top 5
+  W_QUALITY = 0.15    W_AGE = 0.10    k = 40 → top 5
   ```
 
   Lower score = better. `age_days` is `now() − created_at`; it is normalized to

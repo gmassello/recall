@@ -105,6 +105,28 @@ Product rule: if memory has no precedent, the agent says so with low confidence
 instead of making up a root cause. `software-phone` deliberately has no seeded
 incidents so that case can be shown.
 
+### What **Load examples** puts in
+
+One click loads 25 incidents and 12 tickets built to exercise the interesting
+cases by hand:
+
+- **Competing precedents** — 3-4 incidents per symptom family, so the top 5 has
+  to actually discriminate.
+- **Quality beats distance** — TKT-001 ("will not boot") has three candidates:
+  `INC-007` carries `quality_score 0.8` and wins over the more recent `INC-008`,
+  which sits at `-0.6`.
+- **Superseded chain** — TKT-006 ("reboot loop") should surface `INC-015` and not
+  `INC-004`, the obsolete procedure it replaced.
+- **Expired knowledge** — TKT-007 only matches `INC-003`, which is past its
+  `valid_until`: recall comes back empty and the agent has to say so.
+- **No precedent** — the two `software-phone` tickets, plus TKT-009, whose symptom
+  family has no seeded incident even though its area does.
+- **Queue variety** — the four severities, one ticket with no service assigned
+  (TKT-008, an ambiguous symptom) and one already in `handling` (TKT-011).
+
+Seeding is idempotent: a second click changes nothing. The first one embeds 25
+incidents sequentially, so it takes a few seconds.
+
 ### Migrating an older database
 
 The service values used to be `hardware-celular` / `software-celular`. If you

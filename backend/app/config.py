@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     embedding_dims: int = 1024
-    recall_candidates: int = 20
+    recall_candidates: int = 40
     recall_top_k: int = 5
     w_quality: float = 0.15
     w_age: float = 0.10
