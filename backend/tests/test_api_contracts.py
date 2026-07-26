@@ -38,7 +38,7 @@ def test_the_generated_ticket_has_the_shape_of_the_spec():
 
 def test_the_protocol_declares_everything_the_api_uses():
     used = {
-        "list_open",
+        "query",
         "get",
         "ingest",
         "generate",

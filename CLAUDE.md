@@ -116,6 +116,8 @@ has to say so, not invent a root cause.
   (`us.`, `eu.`, `au.`, `jp.`, `global.`); the bare ID fails. Embedding models,
   on the other hand, use the bare ID. Details in `.env.example` and §7 of the docs.
 - `frontend/src/types.ts` mirrors the Pydantic models in `app/models.py`: if a
-  model that travels over the API changes, update both sides.
+  model that travels over the API changes, update both sides. The file also
+  holds UI-only state that mirrors nothing (`SERVICES`, `TicketFilters`); keep
+  the two groups apart.
 - `docs/recall-DOCUMENTATION.md` is the long-form reference (data model, API,
   environment variables, roadmap).

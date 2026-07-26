@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     embedding_provider: str = "bedrock"
 
     aws_region: str = "us-east-1"
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_session_token: str = ""
     bedrock_api_key: str = ""
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     bedrock_embedding_model_id: str = "amazon.titan-embed-text-v2:0"

@@ -34,6 +34,11 @@ CREATE TABLE IF NOT EXISTS tickets (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- covers the queue filter by status plus the created_at ordering. The title
+-- search is an ILIKE '%...%': a leading wildcard cannot use a B-tree, so it
+-- stays a scan until the queue is big enough to need trigram or full-text.
+CREATE INDEX IF NOT EXISTS tickets_status_idx ON tickets (status, created_at);
+
 CREATE TABLE IF NOT EXISTS diagnoses (
     ticket_id  UUID PRIMARY KEY REFERENCES tickets (id) ON DELETE CASCADE,
     payload    JSONB NOT NULL,

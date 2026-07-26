@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { Ticket } from './types'
+import { NO_FILTERS } from './types'
+import type { Ticket, TicketFilters } from './types'
 import TicketQueue from './components/TicketQueue'
 import IncidentView from './components/IncidentView'
 import MemoryExplorer from './components/MemoryExplorer'
@@ -9,10 +10,12 @@ type Tab = 'queue' | 'memory'
 export default function App() {
   const [tab, setTab] = useState<Tab>('queue')
   const [ticket, setTicket] = useState<Ticket | null>(null)
+  const [filters, setFilters] = useState<TicketFilters>(NO_FILTERS)
 
   const switchTab = (next: Tab) => {
     setTab(next)
     setTicket(null)
+    setFilters(NO_FILTERS)
   }
 
   return (
@@ -34,7 +37,7 @@ export default function App() {
         ) : ticket ? (
           <IncidentView ticket={ticket} onBack={() => setTicket(null)} />
         ) : (
-          <TicketQueue onSelect={setTicket} />
+          <TicketQueue filters={filters} onFilters={setFilters} onSelect={setTicket} />
         )}
       </main>
     </div>

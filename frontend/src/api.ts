@@ -9,6 +9,7 @@ import type {
   ResolveResponse,
   Ticket,
   TicketCreate,
+  TicketFilters,
   TicketUpdate,
 } from './types'
 
@@ -44,8 +45,15 @@ function post(body?: unknown): RequestInit {
   return send('POST', body)
 }
 
-export function listTickets(): Promise<Ticket[]> {
-  return request('/tickets')
+export function listTickets(filters: TicketFilters): Promise<Ticket[]> {
+  const params = new URLSearchParams()
+  if (filters.service) params.set('service', filters.service)
+  if (filters.severity) params.set('severity', filters.severity)
+  if (filters.status) params.set('status', filters.status)
+  if (filters.search.trim()) params.set('search', filters.search.trim())
+  if (filters.asc) params.set('order', 'asc')
+  const query = params.toString()
+  return request(`/tickets${query ? `?${query}` : ''}`)
 }
 
 export function getTicket(ticketId: string): Promise<Ticket> {
@@ -89,7 +97,7 @@ export function sendFeedback(ticketId: string, body: FeedbackRequest): Promise<F
 }
 
 export function listMemory(service?: string): Promise<Incident[]> {
-  const query = service ? `?service=${encodeURIComponent(service)}` : ''
+  const query = service ? `?${new URLSearchParams({ service })}` : ''
   return request(`/memory${query}`)
 }
 

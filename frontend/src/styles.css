@@ -91,6 +91,16 @@ button.primary {
   gap: 0.5rem;
 }
 
+.filters {
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.filters input {
+  flex: 1;
+  min-width: 12rem;
+}
+
 input,
 textarea,
 select {

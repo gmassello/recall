@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 Severity = Literal["critical", "high", "medium", "low"]
 SEVERITIES: list[str] = list(get_args(Severity))
 
+TicketStatus = Literal["open", "handling", "resolved"]
+
 
 class TicketCreate(BaseModel):
     title: str

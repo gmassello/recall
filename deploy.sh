@@ -7,18 +7,24 @@ BACKEND=$ROOT/backend
 BUILD=$BACKEND/build
 
 command -v aws >/dev/null || { echo "aws CLI not found"; exit 1; }
-aws sts get-caller-identity >/dev/null || { echo "AWS credentials are not valid"; exit 1; }
 
-ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-REGION=$(aws configure get region || echo "${AWS_DEFAULT_REGION:-us-east-1}")
-STAGING="$STACK-artifacts-$ACCOUNT-$REGION"
-
-[ -f "$BACKEND/.env" ] || { echo "backend/.env not found: it holds DATABASE_URL and the MCP settings"; exit 1; }
+[ -f "$BACKEND/.env" ] || { echo "backend/.env not found: it holds the credentials, DATABASE_URL and the MCP settings"; exit 1; }
 set -a
 # shellcheck disable=SC1091
 source "$BACKEND/.env"
 set +a
 : "${DATABASE_URL:?DATABASE_URL is missing from backend/.env}"
+
+export AWS_DEFAULT_REGION=${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region || echo us-east-1)}}
+REGION=$AWS_DEFAULT_REGION
+
+aws sts get-caller-identity >/dev/null 2>&1 || {
+    echo "AWS credentials are not valid: check AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in backend/.env"
+    echo "(temporary credentials also need AWS_SESSION_TOKEN, and they expire)"
+    exit 1
+}
+ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+STAGING="$STACK-artifacts-$ACCOUNT-$REGION"
 
 echo "==> Building the Lambda package"
 rm -rf "$BUILD"

@@ -1,7 +1,24 @@
 export const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
 export type Severity = (typeof SEVERITIES)[number]
 export const SERVICES: string[] = ['hardware-pc', 'software-pc', 'hardware-phone', 'software-phone']
-export type TicketStatus = 'open' | 'handling' | 'resolved'
+export const STATUSES = ['open', 'handling', 'resolved'] as const
+export type TicketStatus = (typeof STATUSES)[number]
+
+export interface TicketFilters {
+  service: string
+  severity: Severity | ''
+  status: TicketStatus | ''
+  search: string
+  asc: boolean
+}
+
+export const NO_FILTERS: TicketFilters = {
+  service: '',
+  severity: '',
+  status: '',
+  search: '',
+  asc: false,
+}
 
 export interface Ticket {
   id: string

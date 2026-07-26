@@ -68,7 +68,7 @@ npm run dev                 # http://localhost:5173 (proxy /api → :8000)
 | Method | Path | Description |
 |--------|------|-------------|
 | GET  | `/health` | Health check (includes MCP status) |
-| GET  | `/tickets` | Queue of open tickets |
+| GET  | `/tickets` | Queue. Filters: `?service=`, `?severity=`, `?status=`, `?search=` (title substring), `?order=asc\|desc`. Without `status` it hides resolved tickets |
 | POST | `/tickets` | Manual ticket ingestion |
 | POST | `/tickets/generate?n=1` | Generates `n` synthetic tickets |
 | POST | `/tickets/seed` | Loads the example incidents and tickets (idempotent) |
@@ -179,12 +179,21 @@ browser
   deployed. `BEDROCK_API_KEY` stays empty.
 
 Everything lives in `backend/template.yaml` (SAM) and deploys with one command.
-Its parameters are read from `backend/.env`, so no secret is committed:
+Both the stack parameters and the AWS credentials are read from `backend/.env`,
+so no secret is committed and nothing has to be exported by hand:
 
 ```bash
-aws sts get-caller-identity   # credentials must be valid first
-./deploy.sh                   # builds, deploys, uploads the frontend, invalidates the cache
+# backend/.env
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_SESSION_TOKEN=...      # only for temporary credentials
+
+./deploy.sh                # builds, deploys, uploads the frontend, invalidates the cache
 ```
+
+> If you already have `AWS_ACCESS_KEY_ID` and friends exported in your shell,
+> unset them. The backend gives precedence to the real environment variable over
+> the `.env` file, so a stale export silently wins over the file.
 
 The script prints the app URL and the API URL when it finishes. To check that
 the stream really is incremental — the events must arrive with separate

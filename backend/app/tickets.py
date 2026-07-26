@@ -3,7 +3,7 @@ from typing import Protocol, runtime_checkable
 
 from app.config import settings
 from app.db import execute, fetch, fetch_one
-from app.models import TicketCreate
+from app.models import TicketCreate, TicketStatus
 
 TICKET_COLUMNS = """
     id::STRING AS id, external_id, title, description, service,
@@ -11,6 +11,7 @@ TICKET_COLUMNS = """
 """
 
 OPEN_SQL_FILTER = "status != 'resolved'"
+QUEUE_LIMIT = 100
 
 TEMPLATES = [
     ("hardware-pc", "the laptop does not turn on and the charging led stays off", "critical"),
@@ -26,7 +27,14 @@ TEMPLATES = [
 
 @runtime_checkable
 class TicketSource(Protocol):
-    def list_open(self) -> list[dict]: ...
+    def query(
+        self,
+        service: str | None = None,
+        severity: str | None = None,
+        status: str | None = None,
+        search: str | None = None,
+        asc: bool = False,
+    ) -> list[dict]: ...
 
     def get(self, ticket_id: str) -> dict | None: ...
 
@@ -34,7 +42,7 @@ class TicketSource(Protocol):
 
     def generate(self, n: int = 1) -> list[dict]: ...
 
-    def set_status(self, ticket_id: str, status: str) -> None: ...
+    def set_status(self, ticket_id: str, status: TicketStatus) -> None: ...
 
     def update(self, ticket_id: str, changes: dict) -> dict | None: ...
 
@@ -67,10 +75,30 @@ class MockTicketSource:
     def __init__(self, generator: TicketGenerator | None = None) -> None:
         self.generator = generator or TicketGenerator()
 
-    def list_open(self) -> list[dict]:
+    def query(
+        self,
+        service: str | None = None,
+        severity: str | None = None,
+        status: str | None = None,
+        search: str | None = None,
+        asc: bool = False,
+    ) -> list[dict]:
+        conditions, params = ([OPEN_SQL_FILTER], []) if status is None else (["status = %s"], [status])
+        if service:
+            conditions.append("service = %s")
+            params.append(service)
+        if severity:
+            conditions.append("severity = %s")
+            params.append(severity)
+        if search:
+            conditions.append("title ILIKE %s")
+            params.append(f"%{search}%")
+        params.append(QUEUE_LIMIT)
         return fetch(
-            f"SELECT {TICKET_COLUMNS} FROM tickets WHERE {OPEN_SQL_FILTER} "
-            "ORDER BY created_at DESC LIMIT 100"
+            f"SELECT {TICKET_COLUMNS} FROM tickets "
+            f"WHERE {' AND '.join(conditions)} "
+            f"ORDER BY created_at {'ASC' if asc else 'DESC'} LIMIT %s",
+            params,
         )
 
     def get(self, ticket_id: str) -> dict | None:
@@ -103,7 +131,7 @@ class MockTicketSource:
     def generate(self, n: int = 1) -> list[dict]:
         return [self.ingest(self.generator.generate()) for _ in range(n)]
 
-    def set_status(self, ticket_id: str, status: str) -> None:
+    def set_status(self, ticket_id: str, status: TicketStatus) -> None:
         execute(
             "UPDATE tickets SET status = %s WHERE id = %s::UUID", (status, ticket_id)
         )

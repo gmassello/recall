@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Iterator
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
@@ -10,8 +11,10 @@ from app.api.deps import DIAGNOSIS_NOT_FOUND, TICKET_NOT_FOUND, get_ticket_or_40
 from app.models import (
     GeneratedTicket,
     HandleResponse,
+    Severity,
     Ticket,
     TicketCreate,
+    TicketStatus,
     TicketUpdate,
 )
 from seed.seed_memory import seed_incidents, seed_tickets
@@ -22,8 +25,16 @@ router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 
 @router.get("", response_model=list[Ticket])
-def list_tickets() -> list[dict]:
-    return tickets.source.list_open()
+def list_tickets(
+    service: str | None = None,
+    severity: Severity | None = None,
+    status: TicketStatus | None = None,
+    search: str | None = None,
+    order: Literal["asc", "desc"] = "desc",
+) -> list[dict]:
+    return tickets.source.query(
+        service=service, severity=severity, status=status, search=search, asc=order == "asc"
+    )
 
 
 @router.post("", response_model=Ticket, status_code=201)

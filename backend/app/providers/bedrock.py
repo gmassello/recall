@@ -8,11 +8,24 @@ from app.config import settings
 from app.providers.base import Message, ToolSpec, ToolUse, Turn
 
 BEARER_TOKEN_ENV = "AWS_BEARER_TOKEN_BEDROCK"
+ACCESS_KEY_ENV = "AWS_ACCESS_KEY_ID"
+SECRET_KEY_ENV = "AWS_SECRET_ACCESS_KEY"
+SESSION_TOKEN_ENV = "AWS_SESSION_TOKEN"
+
+
+def _export_credentials() -> None:
+    if not (settings.aws_access_key_id and settings.aws_secret_access_key):
+        return
+    os.environ.setdefault(ACCESS_KEY_ENV, settings.aws_access_key_id)
+    os.environ.setdefault(SECRET_KEY_ENV, settings.aws_secret_access_key)
+    if settings.aws_session_token:
+        os.environ.setdefault(SESSION_TOKEN_ENV, settings.aws_session_token)
 
 
 def _client():
     if settings.bedrock_api_key:
         os.environ.setdefault(BEARER_TOKEN_ENV, settings.bedrock_api_key)
+    _export_credentials()
     return boto3.client("bedrock-runtime", region_name=settings.aws_region)
 
 

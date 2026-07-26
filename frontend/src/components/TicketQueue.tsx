@@ -9,13 +9,14 @@ import {
   updateTicket,
 } from '../api'
 import { useAsync } from '../hooks'
-import { SERVICES, SEVERITIES } from '../types'
-import type { Severity, Ticket, TicketCreate, TicketStatus } from '../types'
+import { NO_FILTERS, SERVICES, SEVERITIES, STATUSES } from '../types'
+import type { Severity, Ticket, TicketCreate, TicketFilters, TicketStatus } from '../types'
 
 const SEV_BADGE: Record<Severity, string> = { critical: 'bad', high: 'warn', medium: '', low: '' }
 const STATUS_BADGE: Record<TicketStatus, string> = { open: '', handling: 'warn', resolved: 'ok' }
 const NEW = 'new'
 const POLL_MS = 5000
+const DEBOUNCE_MS = 300
 
 interface Draft {
   title: string
@@ -42,22 +43,49 @@ function bodyOf(draft: Draft): TicketCreate {
   }
 }
 
-export default function TicketQueue({ onSelect }: { onSelect: (t: Ticket) => void }) {
+export default function TicketQueue({
+  filters,
+  onFilters,
+  onSelect,
+}: {
+  filters: TicketFilters
+  onFilters: (f: TicketFilters) => void
+  onSelect: (t: Ticket) => void
+}) {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [expanded, setExpanded] = useState<string | null>(null)
   const { busy, error, run } = useAsync()
 
-  const load = async () => setTickets(await listTickets())
+  const load = async () => setTickets(await listTickets(filters))
 
   const refresh = (opts?: { silent?: boolean }) => run(load, opts)
 
+  const filtered = Object.values(filters).some(Boolean)
+
+  const picker = (field: 'service' | 'severity' | 'status', empty: string, options: readonly string[]) => (
+    <select
+      value={filters[field]}
+      onChange={(e) => onFilters({ ...filters, [field]: e.target.value })}
+    >
+      <option value="">{empty}</option>
+      {options.map((s) => (
+        <option key={s} value={s}>
+          {s}
+        </option>
+      ))}
+    </select>
+  )
+
   useEffect(() => {
-    refresh()
-    const id = setInterval(() => {
+    const first = setTimeout(() => refresh({ silent: true }), filters.search ? DEBOUNCE_MS : 0)
+    const poll = setInterval(() => {
       if (!document.hidden) refresh({ silent: true })
     }, POLL_MS)
-    return () => clearInterval(id)
-  }, [])
+    return () => {
+      clearTimeout(first)
+      clearInterval(poll)
+    }
+  }, [filters])
 
   const generate = () =>
     run(async () => {
@@ -118,10 +146,26 @@ export default function TicketQueue({ onSelect }: { onSelect: (t: Ticket) => voi
           </button>
         </div>
       </div>
+      <div className="actions filters">
+        <input
+          placeholder="Search by title..."
+          value={filters.search}
+          onChange={(e) => onFilters({ ...filters, search: e.target.value })}
+        />
+        {picker('service', 'Any area', SERVICES)}
+        {picker('severity', 'Any severity', SEVERITIES)}
+        {picker('status', 'Open and handling', STATUSES)}
+        <button onClick={() => onFilters({ ...filters, asc: !filters.asc })}>
+          {filters.asc ? 'Oldest first' : 'Newest first'}
+        </button>
+        {filtered && <button onClick={() => onFilters(NO_FILTERS)}>Clear</button>}
+      </div>
       {error && <p className="error">{error}</p>}
       {expanded === NEW && <TicketForm onSaved={onSaved} />}
       {tickets.length === 0 ? (
-        <p className="empty">No tickets. Generate one to get started.</p>
+        <p className="empty">
+          {filtered ? 'No tickets match these filters.' : 'No tickets. Generate one to get started.'}
+        </p>
       ) : (
         <table>
           <thead>

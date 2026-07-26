@@ -169,6 +169,10 @@ CREATE TABLE tickets (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- covers the queue filter by status plus the created_at ordering; the title
+-- search is an ILIKE '%...%' and stays a scan (a leading wildcard cannot use it)
+CREATE INDEX tickets_status_idx ON tickets (status, created_at);
+
 -- last HandleResponse of each ticket, stored whole so reopening the incident
 -- view does not have to run the agent again
 CREATE TABLE diagnoses (
@@ -185,7 +189,7 @@ CREATE TABLE diagnoses (
 | Method | Path | Description |
 |--------|------|-------------|
 | GET  | `/health` | Health check |
-| GET  | `/tickets` | Queue of open tickets |
+| GET  | `/tickets` | Queue. Filters: `?service=`, `?severity=`, `?status=`, `?search=` (free-text match on the title; the mock source implements it as `ILIKE`), `?order=asc\|desc`. Without `status` it keeps the historical behaviour and hides resolved tickets |
 | POST | `/tickets` | Ingestion (manual mock or alert webhook) |
 | POST | `/tickets/generate?n=1` | Generates `n` synthetic tickets and queues them (§9) |
 | POST | `/tickets/seed` | Loads the example incidents and tickets (idempotent) |
