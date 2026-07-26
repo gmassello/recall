@@ -2,7 +2,7 @@ import pytest
 
 from app.api import tickets as api_tickets
 
-TICKET = {"id": "t1", "title": "something", "service": "payments-api", "severity": "sev2"}
+TICKET = {"id": "t1", "title": "something", "service": "payments-api", "severity": "high"}
 
 
 class FakeSource:
@@ -23,7 +23,14 @@ def source(monkeypatch):
     return fake
 
 
-def test_the_ticket_goes_back_to_open_if_the_agent_fails(source, monkeypatch):
+@pytest.fixture
+def saved(monkeypatch):
+    responses: list = []
+    monkeypatch.setattr(api_tickets.diagnoses, "save", responses.append)
+    return responses
+
+
+def test_the_ticket_goes_back_to_open_if_the_agent_fails(source, saved, monkeypatch):
     def raises(ticket):
         raise RuntimeError("Bedrock is not responding")
 
@@ -33,10 +40,12 @@ def test_the_ticket_goes_back_to_open_if_the_agent_fails(source, monkeypatch):
         api_tickets.handle_ticket("t1")
 
     assert source.states == ["handling", "open"]
+    assert saved == []
 
 
-def test_the_ticket_stays_in_handling_if_the_agent_responds(source, monkeypatch):
+def test_the_ticket_stays_in_handling_if_the_agent_responds(source, saved, monkeypatch):
     monkeypatch.setattr(api_tickets, "handle", lambda ticket: "response")
 
     assert api_tickets.handle_ticket("t1") == "response"
     assert source.states == ["handling"]
+    assert saved == ["response"]

@@ -1,5 +1,5 @@
-import { memo, useEffect, useRef, useState } from 'react'
-import { getTicket, resolveIncident, sendFeedback, streamHandle } from '../api'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { getDiagnosis, getTicket, resolveIncident, sendFeedback, streamHandle } from '../api'
 import { useAsync } from '../hooks'
 import type {
   EvidenceStep,
@@ -12,6 +12,14 @@ import type {
 function shortJson(value: unknown, max = 400): string {
   const text = JSON.stringify(value, null, 2) ?? 'null'
   return text.length > max ? `${text.slice(0, max)}…` : text
+}
+
+function suggestionOf(res: HandleResponse | null) {
+  if (!res || res.diagnosis.confidence === 0) return null
+  return {
+    rootCause: res.diagnosis.root_cause,
+    resolution: res.diagnosis.mitigation_steps.join('\n'),
+  }
 }
 
 const EvidenceItem = memo(function EvidenceItem({ step }: { step: EvidenceStep }) {
@@ -44,6 +52,23 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
 
   useEffect(() => () => closeStream.current?.(), [])
 
+  const prefill = (saved: HandleResponse) => {
+    const suggested = suggestionOf(saved)
+    if (!suggested) return
+    setRootCause((prev) => prev || suggested.rootCause)
+    setResolution((prev) => prev || suggested.resolution)
+  }
+
+  useEffect(() => {
+    getDiagnosis(ticket.id)
+      .then((saved) => {
+        setResult(saved)
+        setEvidence(saved.evidence ?? [])
+        prefill(saved)
+      })
+      .catch(() => {})
+  }, [ticket.id])
+
   const refreshTicket = () => {
     getTicket(ticket.id).then(setTicket).catch(() => {})
   }
@@ -59,6 +84,7 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
       onResult: (res) => {
         setResult(res)
         setHandling(false)
+        prefill(res)
         refreshTicket()
       },
       onError: (message) => {
@@ -81,6 +107,17 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
       refreshTicket()
     })
 
+  const suggestion = useMemo(() => suggestionOf(result), [result])
+  const edited =
+    suggestion !== null &&
+    (rootCause !== suggestion.rootCause || resolution !== suggestion.resolution)
+
+  const reset = () => {
+    if (!suggestion) return
+    setRootCause(suggestion.rootCause)
+    setResolution(suggestion.resolution)
+  }
+
   const vote = (helpful: boolean) => {
     if (!result?.most_relevant_incident) return
     const incidentId = result.most_relevant_incident.id
@@ -95,7 +132,7 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
       <div className="section-header">
         <button onClick={onBack}>← Back to the queue</button>
         <button className="primary" onClick={run} disabled={handling}>
-          {handling ? 'Diagnosing...' : 'Diagnose'}
+          {handling ? 'Diagnosing...' : result ? 'Diagnose again' : 'Diagnose'}
         </button>
       </div>
 
@@ -191,6 +228,9 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
           </p>
         ) : (
           <div className="form">
+            {suggestion && (
+              <p className="muted">Prefilled from the agent's diagnosis — edit before saving.</p>
+            )}
             <label>
               Root cause
               <textarea value={rootCause} onChange={(e) => setRootCause(e.target.value)} rows={2} />
@@ -203,13 +243,20 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
               Supersedes (incident id, optional)
               <input value={supersedes} onChange={(e) => setSupersedes(e.target.value)} />
             </label>
-            <button
-              className="primary"
-              onClick={resolve}
-              disabled={resolving || !rootCause.trim() || !resolution.trim()}
-            >
-              {resolving ? 'Saving...' : 'Resolve and write postmortem'}
-            </button>
+            <div className="actions">
+              <button
+                className="primary"
+                onClick={resolve}
+                disabled={resolving || !rootCause.trim() || !resolution.trim()}
+              >
+                {resolving ? 'Saving...' : 'Resolve and write postmortem'}
+              </button>
+              {edited && (
+                <button onClick={reset} disabled={resolving}>
+                  Reset to the agent's diagnosis
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

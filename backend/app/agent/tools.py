@@ -1,6 +1,7 @@
 from typing import Any
 
 from app import memory
+from app.models import SEVERITIES
 from app.providers.base import ToolSpec
 
 SEARCH_MEMORY = ToolSpec(
@@ -33,7 +34,7 @@ QUERY_INCIDENTS = ToolSpec(
         "type": "object",
         "properties": {
             "service": {"type": "string"},
-            "severity": {"type": "string", "enum": ["sev1", "sev2", "sev3", "sev4"]},
+            "severity": {"type": "string", "enum": SEVERITIES},
             "limit": {"type": "integer", "default": 10},
         },
     },

@@ -12,7 +12,7 @@ ROW = {
     "root_cause": None,
     "resolution": None,
     "service": "payments-api",
-    "severity": "sev2",
+    "severity": "high",
     "created_at": "2026-07-20T00:00:00Z",
     "resolved_at": None,
     "valid_until": None,

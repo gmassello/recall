@@ -4,9 +4,9 @@ from collections.abc import Iterator
 from fastapi import APIRouter, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
-from app import tickets
+from app import diagnoses, tickets
 from app.agent.loop import handle, handle_events
-from app.api.deps import TICKET_NOT_FOUND, get_ticket_or_404
+from app.api.deps import DIAGNOSIS_NOT_FOUND, TICKET_NOT_FOUND, get_ticket_or_404
 from app.models import (
     GeneratedTicket,
     HandleResponse,
@@ -67,15 +67,25 @@ def delete_ticket(ticket_id: str) -> None:
         raise HTTPException(status_code=404, detail=TICKET_NOT_FOUND)
 
 
+@router.get("/{ticket_id}/diagnosis", response_model=HandleResponse)
+def get_diagnosis(ticket_id: str) -> HandleResponse:
+    saved = diagnoses.get(ticket_id)
+    if saved is None:
+        raise HTTPException(status_code=404, detail=DIAGNOSIS_NOT_FOUND)
+    return saved
+
+
 @router.post("/{ticket_id}/handle", response_model=HandleResponse)
 def handle_ticket(ticket_id: str) -> HandleResponse:
     ticket = get_ticket_or_404(ticket_id)
     tickets.source.set_status(ticket_id, "handling")
     try:
-        return handle(ticket)
+        response = handle(ticket)
     except Exception:
         tickets.source.set_status(ticket_id, "open")
         raise
+    diagnoses.save(response)
+    return response
 
 
 @router.get("/{ticket_id}/handle/stream")
@@ -87,8 +97,11 @@ def handle_ticket_stream(ticket_id: str) -> EventSourceResponse:
         complete = False
         try:
             for kind, payload in handle_events(ticket):
-                exclude = {"evidence"} if kind == "result" else None
-                complete = complete or kind == "result"
+                exclude = None
+                if kind == "result":
+                    complete = True
+                    exclude = {"evidence"}
+                    diagnoses.save(payload)
                 yield {"event": kind, "data": payload.model_dump_json(exclude=exclude)}
         except Exception as exc:
             log.exception("The agent failed while streaming ticket %s", ticket_id)

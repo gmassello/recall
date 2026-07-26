@@ -4,7 +4,7 @@
     "title": "[hardware-pc] the laptop will not boot after a power outage",
     "description": "it does not turn on, the charging led stays off even with another charger",
     "service": "hardware-pc",
-    "severity": "sev1",
+    "severity": "critical",
     "source": "seed"
   },
   {
@@ -12,7 +12,7 @@
     "title": "[software-pc] the PC takes 15 minutes to reach the desktop",
     "description": "it boots extremely slowly and the disk sits at 100% usage while doing nothing",
     "service": "software-pc",
-    "severity": "sev2",
+    "severity": "high",
     "source": "seed"
   },
   {
@@ -20,7 +20,7 @@
     "title": "[software-phone] the phone is stuck on the logo",
     "description": "for the last 3 days it never gets past the logo screen at boot",
     "service": "software-phone",
-    "severity": "sev2",
+    "severity": "high",
     "source": "seed"
   },
   {
@@ -28,7 +28,7 @@
     "title": "[software-phone] out of space and updates keep failing",
     "description": "it says there is no storage left with 120GB of photos and the system update never installs",
     "service": "software-phone",
-    "severity": "sev4",
+    "severity": "low",
     "source": "seed"
   },
   {
@@ -36,7 +36,7 @@
     "title": "[hardware-phone] a band of the screen ignores touches",
     "description": "the lower third of the display does not respond to touch since it was dropped",
     "service": "hardware-phone",
-    "severity": "sev2",
+    "severity": "high",
     "source": "seed"
   },
   {
@@ -44,7 +44,7 @@
     "title": "[software-pc] Windows restarts in a loop after the last update",
     "description": "it reboots over and over after installing updates and never reaches the login screen",
     "service": "software-pc",
-    "severity": "sev2",
+    "severity": "high",
     "source": "seed"
   },
   {
@@ -52,7 +52,7 @@
     "title": "[hardware-pc] very slow with several programs open",
     "description": "the machine crawls when a few programs are open at the same time",
     "service": "hardware-pc",
-    "severity": "sev3",
+    "severity": "medium",
     "source": "seed"
   },
   {
@@ -60,7 +60,7 @@
     "title": "it turns off by itself and gets very hot",
     "description": "the device shuts down on its own after a while and is hot to the touch, the owner did not say what it is",
     "service": null,
-    "severity": "sev2",
+    "severity": "high",
     "source": "seed"
   },
   {
@@ -68,7 +68,7 @@
     "title": "[hardware-phone] it only charges if the cable is held in place",
     "description": "the phone charges only when the cable is pushed at a certain angle",
     "service": "hardware-phone",
-    "severity": "sev3",
+    "severity": "medium",
     "source": "seed"
   },
   {
@@ -76,7 +76,7 @@
     "title": "[hardware-phone] dead after falling into water",
     "description": "it fell into the sink and now it does not turn on or react to the charger",
     "service": "hardware-phone",
-    "severity": "sev1",
+    "severity": "critical",
     "source": "seed"
   },
   {
@@ -84,7 +84,7 @@
     "title": "[hardware-pc] it freezes several times a day",
     "description": "the machine locks up at random and only a hard reset brings it back",
     "service": "hardware-pc",
-    "severity": "sev2",
+    "severity": "high",
     "source": "seed",
     "status": "handling"
   },
@@ -93,7 +93,7 @@
     "title": "[software-pc] ads open on their own while browsing",
     "description": "the browser opens ad tabs by itself and everything feels slow",
     "service": "software-pc",
-    "severity": "sev3",
+    "severity": "medium",
     "source": "seed"
   }
 ]

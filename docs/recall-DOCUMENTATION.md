@@ -136,7 +136,7 @@ Two limitations of the vector index shape how the recall query is written:
   concentrated a lot of volume, an approximate scheme would be needed again.
 
 ```sql
--- severity : 'sev1' | 'sev2' | 'sev3' | 'sev4'
+-- severity : 'critical' | 'high' | 'medium' | 'low'
 -- status   : tickets -> 'open' | 'handling' | 'resolved'
 
 CREATE TABLE incidents (
@@ -168,6 +168,14 @@ CREATE TABLE tickets (
     source STRING DEFAULT 'manual',
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- last HandleResponse of each ticket, stored whole so reopening the incident
+-- view does not have to run the agent again
+CREATE TABLE diagnoses (
+    ticket_id  UUID PRIMARY KEY REFERENCES tickets (id) ON DELETE CASCADE,
+    payload    JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
 ```
 
 ---
@@ -184,6 +192,7 @@ CREATE TABLE tickets (
 | GET  | `/tickets/{id}` | Ticket detail |
 | POST | `/tickets/{id}/handle` | Runs the agent loop → diagnosis + evidence |
 | GET  | `/tickets/{id}/handle/stream` | Same as `handle` but over SSE: `evidence` (one per tool), `result` (full response) and `error` events |
+| GET  | `/tickets/{id}/diagnosis` | Last saved diagnosis of the ticket, evidence included (404 if never diagnosed) |
 | POST | `/incidents/{ticket_id}/resolve` | Writes the postmortem (memory grows) |
 | POST | `/incidents/{ticket_id}/feedback` | 👍/👎 adjusts the quality of the memory |
 | GET  | `/memory?service=...` | Memory inspection |
@@ -238,7 +247,7 @@ and what it recalled), which feeds the live timeline in the frontend.
 ```jsonc
 // 201
 { "generated": [ { "id": "…", "title": "…", "symptom": "…",
-                   "service": "payments-api", "severity": "sev2",
+                   "service": "payments-api", "severity": "high",
                    "source": "generated" } ] }
 ```
 
@@ -400,10 +409,10 @@ with numeric placeholders (`pct`, `n`, `gb`) filled in with `random`:
 
 ```python
 TEMPLATES = [
-    ("hardware-pc",    "the laptop does not turn on and the charging led stays off", "sev1"),
-    ("software-pc",    "Windows goes into a reboot loop after the update",           "sev2"),
-    ("hardware-phone", "the touchscreen does not respond on {pct}% of the display",  "sev2"),
-    ("software-phone", "it has been stuck on the logo at boot for {n} days",         "sev2"),
+    ("hardware-pc",    "the laptop does not turn on and the charging led stays off", "critical"),
+    ("software-pc",    "Windows goes into a reboot loop after the update",           "high"),
+    ("hardware-phone", "the touchscreen does not respond on {pct}% of the display",  "high"),
+    ("software-phone", "it has been stuck on the logo at boot for {n} days",         "high"),
 ]
 ```
 
@@ -438,7 +447,7 @@ Input format, `history.jsonl` (one line per incident):
 ```jsonc
 { "external_id": "INC-1042", "title": "…", "symptom": "…",
   "root_cause": "…", "resolution": "…",       // if missing → skipped
-  "service": "payments-api", "severity": "sev2",
+  "service": "payments-api", "severity": "high",
   "created_at": "2025-03-11T04:12:00Z", "resolved_at": "2025-03-11T05:40:00Z" }
 ```
 

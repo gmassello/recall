@@ -23,14 +23,14 @@ def captured(monkeypatch):
 
 
 def test_editing_builds_the_update_only_with_the_changed_fields(captured):
-    MockTicketSource().update("t1", {"title": "new", "severity": "sev1"})
+    MockTicketSource().update("t1", {"title": "new", "severity": "critical"})
 
     sql, params = captured[-1]
     assert "UPDATE tickets" in sql
     assert "title = %s" in sql
     assert "severity = %s" in sql
     assert "status = %s" not in sql
-    assert params == ["new", "sev1", "t1"]
+    assert params == ["new", "critical", "t1"]
 
 
 def test_editing_without_changes_emits_no_update(captured):

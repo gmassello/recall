@@ -1,14 +1,17 @@
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, Field
+
+Severity = Literal["critical", "high", "medium", "low"]
+SEVERITIES: list[str] = list(get_args(Severity))
 
 
 class TicketCreate(BaseModel):
     title: str
     description: str | None = None
     service: str | None = None
-    severity: Literal["sev1", "sev2", "sev3", "sev4"] = "sev3"
+    severity: Severity = "medium"
     external_id: str | None = None
     source: str = "manual"
 
@@ -17,7 +20,7 @@ class TicketUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     service: str | None = None
-    severity: Literal["sev1", "sev2", "sev3", "sev4"] | None = None
+    severity: Severity | None = None
 
 
 class Ticket(BaseModel):
@@ -77,7 +80,7 @@ class IncidentUpdate(BaseModel):
     root_cause: str | None = None
     resolution: str | None = None
     service: str | None = None
-    severity: str | None = None
+    severity: Severity | None = None
 
 
 class SupersedeRequest(BaseModel):

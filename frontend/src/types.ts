@@ -1,5 +1,5 @@
-export type Severity = 'sev1' | 'sev2' | 'sev3' | 'sev4'
-export const SEVERITIES: Severity[] = ['sev1', 'sev2', 'sev3', 'sev4']
+export const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
+export type Severity = (typeof SEVERITIES)[number]
 export const SERVICES: string[] = ['hardware-pc', 'software-pc', 'hardware-phone', 'software-phone']
 export type TicketStatus = 'open' | 'handling' | 'resolved'
 
@@ -51,7 +51,7 @@ export interface IncidentUpdate {
   root_cause?: string | null
   resolution?: string | null
   service?: string | null
-  severity?: string | null
+  severity?: Severity | null
 }
 
 export interface Diagnosis {

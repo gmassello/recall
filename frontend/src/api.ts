@@ -12,7 +12,7 @@ import type {
   TicketUpdate,
 } from './types'
 
-const BASE = '/api'
+const BASE = import.meta.env.VITE_API_BASE ?? '/api'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, init)
@@ -54,6 +54,10 @@ export function getTicket(ticketId: string): Promise<Ticket> {
 
 export function generateTicket(): Promise<unknown> {
   return request('/tickets/generate?n=1', post())
+}
+
+export function getDiagnosis(ticketId: string): Promise<HandleResponse> {
+  return request(`/tickets/${ticketId}/diagnosis`)
 }
 
 export function seedDemo(): Promise<void> {

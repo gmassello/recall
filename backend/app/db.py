@@ -12,7 +12,13 @@ log = logging.getLogger(__name__)
 
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema.sql"
 
-pool = ConnectionPool(settings.database_url, min_size=1, max_size=8, open=False)
+pool = ConnectionPool(
+    settings.database_url,
+    min_size=1,
+    max_size=8,
+    open=False,
+    check=ConnectionPool.check_connection,
+)
 
 
 def _pool() -> ConnectionPool:

@@ -2,17 +2,17 @@ import { Fragment, useEffect, useState } from 'react'
 import { clearMemory, deleteIncident, listMemory, supersedeIncident, updateIncident } from '../api'
 import { useAsync } from '../hooks'
 import { SEVERITIES } from '../types'
-import type { Incident, IncidentUpdate, Validity } from '../types'
+import type { Incident, IncidentUpdate, Severity, Validity } from '../types'
 
 const VALIDITY_BADGE: Record<Validity, string> = { current: 'ok', expired: 'bad', superseded: 'stale' }
 const DEBOUNCE_MS = 300
-const NULLABLE_FIELDS = ['service', 'severity', 'root_cause', 'resolution'] as const
+const NULLABLE_FIELDS = ['service', 'root_cause', 'resolution'] as const
 
 interface Draft {
   title: string
   symptom: string
   service: string
-  severity: string
+  severity: Severity | ''
   root_cause: string
   resolution: string
 }
@@ -22,7 +22,7 @@ function draftOf(i: Incident): Draft {
     title: i.title,
     symptom: i.symptom,
     service: i.service ?? '',
-    severity: i.severity ?? '',
+    severity: SEVERITIES.find((s) => s === i.severity) ?? '',
     root_cause: i.root_cause ?? '',
     resolution: i.resolution ?? '',
   }
@@ -32,6 +32,7 @@ function changesOf(original: Incident, draft: Draft): IncidentUpdate {
   const changes: IncidentUpdate = {}
   if (draft.title !== original.title) changes.title = draft.title
   if (draft.symptom !== original.symptom) changes.symptom = draft.symptom
+  if (draft.severity !== (original.severity ?? '')) changes.severity = draft.severity || null
   for (const field of NULLABLE_FIELDS) {
     if (draft[field] !== (original[field] ?? '')) changes[field] = draft[field] || null
   }

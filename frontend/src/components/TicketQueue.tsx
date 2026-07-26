@@ -12,7 +12,7 @@ import { useAsync } from '../hooks'
 import { SERVICES, SEVERITIES } from '../types'
 import type { Severity, Ticket, TicketCreate, TicketStatus } from '../types'
 
-const SEV_BADGE: Record<Severity, string> = { sev1: 'bad', sev2: 'warn', sev3: '', sev4: '' }
+const SEV_BADGE: Record<Severity, string> = { critical: 'bad', high: 'warn', medium: '', low: '' }
 const STATUS_BADGE: Record<TicketStatus, string> = { open: '', handling: 'warn', resolved: 'ok' }
 const NEW = 'new'
 const POLL_MS = 5000
@@ -29,7 +29,7 @@ function draftOf(t?: Ticket): Draft {
     title: t?.title ?? '',
     description: t?.description ?? '',
     service: t?.service ?? '',
-    severity: t?.severity ?? 'sev3',
+    severity: t?.severity ?? 'medium',
   }
 }
 
@@ -140,7 +140,7 @@ export default function TicketQueue({ onSelect }: { onSelect: (t: Ticket) => voi
                 <tr className="clickable" onClick={() => onSelect(t)}>
                   <td>{t.title}</td>
                   <td>{t.service ?? '—'}</td>
-                  <td>{t.severity && <span className={`badge ${SEV_BADGE[t.severity]}`}>{t.severity}</span>}</td>
+                  <td>{t.severity && <span className={`badge ${SEV_BADGE[t.severity] ?? ''}`}>{t.severity}</span>}</td>
                   <td>
                     <span className={`badge ${STATUS_BADGE[t.status]}`}>{t.status}</span>
                   </td>

@@ -9,7 +9,7 @@ TICKET = {
     "title": "[payments-api] slow checkout",
     "description": "p99 latency at 4200ms",
     "service": "payments-api",
-    "severity": "sev2",
+    "severity": "high",
 }
 
 VALID = {

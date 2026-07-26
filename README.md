@@ -78,6 +78,7 @@ npm run dev                 # http://localhost:5173 (proxy /api → :8000)
 | DELETE | `/tickets/{id}` | Deletes a ticket |
 | POST | `/tickets/{id}/handle` | Runs the agent loop → diagnosis + evidence |
 | GET  | `/tickets/{id}/handle/stream` | Same as `handle`, over SSE: `evidence`, `result`, `agent_error` events |
+| GET  | `/tickets/{id}/diagnosis` | Last saved diagnosis, evidence included (404 if never diagnosed) |
 | POST | `/incidents/{ticket_id}/resolve` | Writes the postmortem (memory grows) |
 | POST | `/incidents/{ticket_id}/feedback` | 👍/👎 adjusts the quality of the cited incident |
 | GET  | `/memory?service=...` | Memory inspection |
@@ -137,7 +138,78 @@ UPDATE incidents SET service = replace(service, '-celular', '-phone') WHERE serv
 UPDATE tickets   SET service = replace(service, '-celular', '-phone') WHERE service LIKE '%-celular';
 ```
 
+Severity used to be `sev1`..`sev4`. If you have rows from before that rename:
+
+```sql
+UPDATE incidents SET severity = CASE severity
+    WHEN 'sev1' THEN 'critical' WHEN 'sev2' THEN 'high'
+    WHEN 'sev3' THEN 'medium'   WHEN 'sev4' THEN 'low'
+END WHERE severity LIKE 'sev_';
+UPDATE tickets SET severity = CASE severity
+    WHEN 'sev1' THEN 'critical' WHEN 'sev2' THEN 'high'
+    WHEN 'sev3' THEN 'medium'   WHEN 'sev4' THEN 'low'
+END WHERE severity LIKE 'sev_';
+```
+
 For a demo database, clearing both tables and pressing **Load examples** works too.
+
+## Deploy on AWS
+
+Four AWS services, all inside the always-free tier — the only thing you pay for
+is Bedrock tokens.
+
+```
+browser
+  ├─ GET /  ────────────→ CloudFront ──(OAC)──→ S3 (Vite bundle)
+  └─ fetch + EventSource ─────────────────────→ Lambda Function URL
+                                                  (InvokeMode: RESPONSE_STREAM)
+                                                     ↓ Web Adapter → uvicorn → FastAPI
+                                                     ├→ Bedrock (execution role, SigV4)
+                                                     └→ CockroachDB (MCP + psycopg)
+```
+
+- **Lambda** runs the agent loop. The [AWS Lambda Web
+  Adapter](https://github.com/awslabs/aws-lambda-web-adapter) is attached as a
+  public layer, so the same FastAPI app runs unchanged; `AWS_LWA_INVOKE_MODE=response_stream`
+  plus a Function URL in `RESPONSE_STREAM` mode keep the SSE evidence timeline
+  streaming incrementally instead of buffering to the end.
+- **S3 + CloudFront** serve the frontend. The bucket stays private: CloudFront
+  reads it through an Origin Access Control.
+- Bedrock is reached through the function's execution role, so no keys are
+  deployed. `BEDROCK_API_KEY` stays empty.
+
+Everything lives in `backend/template.yaml` (SAM) and deploys with one command.
+Its parameters are read from `backend/.env`, so no secret is committed:
+
+```bash
+aws sts get-caller-identity   # credentials must be valid first
+./deploy.sh                   # builds, deploys, uploads the frontend, invalidates the cache
+```
+
+The script prints the app URL and the API URL when it finishes. To check that
+the stream really is incremental — the events must arrive with separate
+timestamps, not all at once at the end:
+
+```bash
+FN=$(aws cloudformation describe-stacks --stack-name recall \
+     --query "Stacks[0].Outputs[?OutputKey=='FunctionUrl'].OutputValue" --output text)
+TID=$(curl -s "$FN/tickets" | jq -r '.[0].id')
+curl -N --no-buffer "$FN/tickets/$TID/handle/stream" \
+  | while IFS= read -r line; do echo "$(date +%s.%N) $line"; done
+```
+
+Notes:
+
+- `AWS_REGION` is a reserved Lambda variable and cannot be set in the template;
+  the function inherits the region it is deployed to. Since the default
+  `BEDROCK_MODEL_ID` uses the `us.` inference profile prefix, deploy to a `us-*`
+  region or override the parameter.
+- The Lambda package is built for `arm64` / Python 3.13, so the `pip install`
+  needs `--platform` (see `deploy.sh`): installing macOS wheels produces a
+  function that dies importing `psycopg`.
+- Schema creation and seeding are not part of the deploy. Run `python -m app.db`
+  and `python -m seed.seed_memory` locally against the same `DATABASE_URL`, or
+  use the **Load examples** button once the app is up.
 
 ## Tests
 

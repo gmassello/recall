@@ -13,14 +13,14 @@ TICKET_COLUMNS = """
 OPEN_SQL_FILTER = "status != 'resolved'"
 
 TEMPLATES = [
-    ("hardware-pc", "the laptop does not turn on and the charging led stays off", "sev1"),
-    ("hardware-pc", "it shuts down by itself after {n} minutes of use and the fan blows hard", "sev2"),
-    ("software-pc", "Windows goes into a reboot loop after the last update", "sev2"),
-    ("software-pc", "it takes {n} minutes to boot and the disk sits at 100% usage", "sev3"),
-    ("hardware-phone", "the touchscreen does not respond on {pct}% of the display", "sev2"),
-    ("hardware-phone", "it only charges if the cable is held in a certain position", "sev3"),
-    ("software-phone", "it has been stuck on the logo at boot for {n} days", "sev2"),
-    ("software-phone", "it ran out of space with {gb}GB of photos and will not update", "sev4"),
+    ("hardware-pc", "the laptop does not turn on and the charging led stays off", "critical"),
+    ("hardware-pc", "it shuts down by itself after {n} minutes of use and the fan blows hard", "high"),
+    ("software-pc", "Windows goes into a reboot loop after the last update", "high"),
+    ("software-pc", "it takes {n} minutes to boot and the disk sits at 100% usage", "medium"),
+    ("hardware-phone", "the touchscreen does not respond on {pct}% of the display", "high"),
+    ("hardware-phone", "it only charges if the cable is held in a certain position", "medium"),
+    ("software-phone", "it has been stuck on the logo at boot for {n} days", "high"),
+    ("software-phone", "it ran out of space with {gb}GB of photos and will not update", "low"),
 ]
 
 

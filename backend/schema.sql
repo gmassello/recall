@@ -33,3 +33,9 @@ CREATE TABLE IF NOT EXISTS tickets (
     source STRING DEFAULT 'manual',
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS diagnoses (
+    ticket_id  UUID PRIMARY KEY REFERENCES tickets (id) ON DELETE CASCADE,
+    payload    JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+);

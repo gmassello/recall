@@ -39,9 +39,10 @@ queue, incident view and memory explorer — with no router and no state manager
 everything is `useState` and `fetch`, proxying `/api` → `:8000`.
 
 Core flow: `POST /tickets/{id}/handle` → `agent/loop.handle()` → the LLM calls
-`search_memory` / `query_incidents` → it ends with `submit_diagnosis`. Then a
-human calls `POST /incidents/{id}/resolve`, which re-embeds the resolved incident
-into `incidents` (`postmortem.write_postmortem`).
+`search_memory` / `query_incidents` → it ends with `submit_diagnosis`. The router
+persists the result with `diagnoses.save()`, so reopening the ticket does not run
+the agent again. Then a human calls `POST /incidents/{id}/resolve`, which re-embeds
+the resolved incident into `incidents` (`postmortem.write_postmortem`).
 
 Streaming variant: `GET /tickets/{id}/handle/stream` (SSE, a GET because the
 browser `EventSource` only supports GET). The core of the loop is the
@@ -59,6 +60,10 @@ Layers and their boundaries:
 - `app/tickets.py` — `TicketSource` is a `Protocol`; today the only implementation
   is `MockTicketSource` (DB + synthetic generator). Integrating Jira/PagerDuty
   means adding another implementation, not touching the rest.
+- `app/diagnoses.py` — the **only** layer that talks to the `diagnoses` table: the
+  last `HandleResponse` of each ticket, stored whole as JSONB. One row per ticket,
+  upserted; the row dies with the ticket via `ON DELETE CASCADE`. Saving happens in
+  the router, not in `loop.py`, so the agent loop stays free of DB writes.
 - `app/agent/` — `tools.py` declares the `ToolSpec`s and executes them; `loop.py`
   runs the turn loop. The loop is provider agnostic: it speaks the dataclasses of
   `providers/base.py` (`Message`, `ToolUse`, `ToolResult`, `Turn`).
