@@ -56,6 +56,10 @@ export function generateTicket(): Promise<unknown> {
   return request('/tickets/generate?n=1', post())
 }
 
+export function seedDemo(): Promise<void> {
+  return request('/tickets/seed', post())
+}
+
 export function createTicket(body: TicketCreate): Promise<Ticket> {
   return request('/tickets', post(body))
 }

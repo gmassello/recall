@@ -99,7 +99,8 @@ def seed_incidents() -> None:
 def seed_tickets() -> None:
     path = Path(__file__).parent / "tickets_seed.json"
     for raw in json.loads(path.read_text()):
-        tickets.source.ingest(TicketCreate(**raw))
+        fila = tickets.source.ingest(TicketCreate(**raw))
+        tickets.source.set_status(fila["id"], "open")
         log.info("Ticket: %s", raw["external_id"])
 
 

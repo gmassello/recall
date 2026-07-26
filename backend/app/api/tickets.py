@@ -14,6 +14,7 @@ from app.models import (
     TicketCreate,
     TicketUpdate,
 )
+from seed.seed_memory import seed_incidents, seed_tickets
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +35,12 @@ def create_ticket(ticket: TicketCreate) -> dict:
 def generate_tickets(n: int = Query(1, ge=1, le=20)) -> dict:
     generados = [GeneratedTicket.from_row(row) for row in tickets.source.generate(n)]
     return {"generated": generados}
+
+
+@router.post("/seed", status_code=204)
+def seed_demo() -> None:
+    seed_incidents()
+    seed_tickets()
 
 
 @router.delete("")

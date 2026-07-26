@@ -5,6 +5,7 @@ import {
   deleteTicket,
   generateTicket,
   listTickets,
+  seedDemo,
   updateTicket,
 } from '../api'
 import { useAsync } from '../hooks'
@@ -57,11 +58,14 @@ export default function TicketQueue({ onSelect }: { onSelect: (t: Ticket) => voi
     return () => clearInterval(id)
   }, [])
 
-  const generate = () =>
+  const conRecarga = (accion: () => Promise<unknown>) => () =>
     run(async () => {
-      await generateTicket()
+      await accion()
       setTickets(await listTickets())
     })
+
+  const generate = conRecarga(generateTicket)
+  const seed = conRecarga(seedDemo)
 
   const remove = (id: string) => {
     if (!window.confirm('¿Eliminar este ticket de la cola?')) return
@@ -101,6 +105,9 @@ export default function TicketQueue({ onSelect }: { onSelect: (t: Ticket) => voi
           </button>
           <button className="primary" onClick={generate} disabled={busy}>
             {busy ? 'Generando...' : 'Generar random'}
+          </button>
+          <button onClick={seed} disabled={busy}>
+            Cargar ejemplos
           </button>
           <button onClick={wipe} disabled={busy || tickets.length === 0}>
             Borrar todo

@@ -1,7 +1,10 @@
+from types import SimpleNamespace
+
 import pytest
 
 from app import tickets
 from app.tickets import OPEN_SQL_FILTER, MockTicketSource
+from seed import seed_memory
 
 
 @pytest.fixture
@@ -43,6 +46,19 @@ def test_eliminar_borra_por_id(capturas):
     sql, params = capturas[0]
     assert "DELETE FROM tickets WHERE id = %s" in sql
     assert params == ["t1"]
+
+
+def test_sembrar_tickets_los_reabre_para_que_vuelvan_a_la_cola(monkeypatch):
+    estados: list[tuple[str, str]] = []
+    doble = SimpleNamespace(
+        ingest=lambda ticket: {"id": ticket.external_id},
+        set_status=lambda tid, status: estados.append((tid, status)),
+    )
+    monkeypatch.setattr(seed_memory.tickets, "source", doble)
+
+    seed_memory.seed_tickets()
+
+    assert estados == [("TKT-001", "open"), ("TKT-002", "open"), ("TKT-003", "open")]
 
 
 def test_borrar_todo_usa_el_mismo_filtro_que_la_cola(capturas):
