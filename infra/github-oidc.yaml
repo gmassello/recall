@@ -2,13 +2,12 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: GitHub Actions OIDC provider and deploy role for the recall stack
 
 Parameters:
-  GitHubRepo:
+  GitHubSubject:
     Type: String
-    Default: gmassello/recall
-  GitHubRef:
-    Type: String
-    Default: refs/heads/main
-    Description: Only workflows running on this ref can assume the role.
+    Default: repo:gmassello@12966514/recall@1306083059:ref:refs/heads/main
+    Description: >-
+      OIDC sub claim of the runs allowed to assume the role. GitHub emits immutable owner and
+      repository IDs, not names - read it from the token instead of composing it by hand.
   AppStackName:
     Type: String
     Default: recall
@@ -35,7 +34,7 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: !Sub 'repo:${GitHubRepo}:ref:${GitHubRef}'
+                token.actions.githubusercontent.com:sub: !Ref GitHubSubject
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/PowerUserAccess
       Policies:
