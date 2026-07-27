@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Recall - on-call copilot with semantic incident memory (Lambda + S3 + CloudFront)
+
+Parameters:
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+    Description: CockroachDB connection string, e.g. postgresql://user:pass@host:26257/oncall?sslmode=verify-full
+  CockroachMcpUrl:
+    Type: String
+    Default: ''
+    Description: Cockroach Managed MCP Server URL. Empty disables the MCP read path.
+  CockroachMcpApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+  CockroachMcpClusterId:
+    Type: String
+    Default: ''
+  BedrockModelId:
+    Type: String
+    Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+    Description: Inference profile ID. The prefix must match the deployment region.
+  BedrockEmbeddingModelId:
+    Type: String
+    Default: amazon.titan-embed-text-v2:0
+
+Resources:
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: build/
+      Handler: run.sh
+      Runtime: python3.13
+      Architectures: [arm64]
+      MemorySize: 1024
+      Timeout: 600
+      ReservedConcurrentExecutions: 5
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerArm64:64
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_INVOKE_MODE: response_stream
+          PORT: 8000
+          DATABASE_URL: !Ref DatabaseUrl
+          COCKROACH_MCP_URL: !Ref CockroachMcpUrl
+          COCKROACH_MCP_API_KEY: !Ref CockroachMcpApiKey
+          COCKROACH_MCP_CLUSTER_ID: !Ref CockroachMcpClusterId
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          BEDROCK_EMBEDDING_MODEL_ID: !Ref BedrockEmbeddingModelId
+          LLM_PROVIDER: bedrock
+          EMBEDDING_PROVIDER: bedrock
+          CORS_ORIGINS: !Sub 'https://${SiteDistribution.DomainName},http://localhost:5173'
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource:
+                - !Sub arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*
+                - arn:aws:bedrock:*::foundation-model/anthropic.claude-*
+                - arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-*
+
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  SiteOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  SiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: site-s3
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt SiteOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: site-s3
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${SiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution.Id}'
+
+Outputs:
+  FunctionUrl:
+    Description: Lambda Function URL - the API base for the frontend
+    Value: !GetAtt ApiFunctionUrl.FunctionUrl
+  SiteBucket:
+    Description: S3 bucket holding the Vite bundle
+    Value: !Ref SiteBucket
+  DistributionId:
+    Description: CloudFront distribution ID, for cache invalidations
+    Value: !Ref SiteDistribution
+  SiteUrl:
+    Description: Public URL of the app
+    Value: !Sub 'https://${SiteDistribution.DomainName}'

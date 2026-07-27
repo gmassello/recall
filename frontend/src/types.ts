@@ -1,0 +1,122 @@
+export const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
+export type Severity = (typeof SEVERITIES)[number]
+export const SERVICES: string[] = ['hardware-pc', 'software-pc', 'hardware-phone', 'software-phone']
+export const STATUSES = ['open', 'handling', 'resolved'] as const
+export type TicketStatus = (typeof STATUSES)[number]
+
+export interface TicketFilters {
+  service: string
+  severity: Severity | ''
+  status: TicketStatus | ''
+  search: string
+  asc: boolean
+}
+
+export const NO_FILTERS: TicketFilters = {
+  service: '',
+  severity: '',
+  status: '',
+  search: '',
+  asc: false,
+}
+
+export interface Ticket {
+  id: string
+  external_id: string | null
+  title: string
+  description: string | null
+  service: string | null
+  severity: Severity | null
+  status: TicketStatus
+  source: string
+  created_at: string
+}
+
+export interface TicketCreate {
+  title: string
+  description: string | null
+  service: string | null
+  severity: Severity
+}
+
+export type TicketUpdate = Partial<TicketCreate>
+
+export type Validity = 'current' | 'expired' | 'superseded'
+
+export interface Incident {
+  id: string
+  title: string
+  symptom: string
+  root_cause: string | null
+  resolution: string | null
+  service: string | null
+  severity: string | null
+  created_at: string
+  resolved_at: string | null
+  valid_until: string | null
+  superseded_by: string | null
+  quality_score: number
+  times_cited: number
+  times_helpful: number
+  source: string
+  validity: Validity
+}
+
+export interface IncidentUpdate {
+  title?: string
+  symptom?: string
+  root_cause?: string | null
+  resolution?: string | null
+  service?: string | null
+  severity?: Severity | null
+}
+
+export interface Diagnosis {
+  root_cause: string
+  mitigation_steps: string[]
+  confidence: number
+}
+
+export interface RelevantIncident {
+  id: string
+  title: string
+  score: number
+}
+
+export interface EvidenceStep {
+  tool: string
+  via: string
+  args: Record<string, unknown>
+  returned: unknown
+}
+
+export interface HandleResponse {
+  ticket_id: string
+  diagnosis: Diagnosis
+  most_relevant_incident: RelevantIncident | null
+  evidence?: EvidenceStep[]
+}
+
+export interface ResolveRequest {
+  root_cause: string
+  resolution: string
+  supersedes: string | null
+}
+
+export interface ResolveResponse {
+  incident_id: string
+  embedded: boolean
+  superseded: string | null
+}
+
+export interface FeedbackRequest {
+  incident_id: string
+  helpful: boolean
+}
+
+export interface FeedbackResponse {
+  incident_id: string
+  quality_score: number
+  times_helpful: number
+}
+

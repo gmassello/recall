@@ -217,3 +217,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 /.idea/
+
+# Node
+node_modules/
+
+# AWS deploy
+backend/.packaged.yaml
