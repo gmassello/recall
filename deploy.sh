@@ -8,12 +8,13 @@ BUILD=$BACKEND/build
 
 command -v aws >/dev/null || { echo "aws CLI not found"; exit 1; }
 
-[ -f "$BACKEND/.env" ] || { echo "backend/.env not found: it holds the credentials, DATABASE_URL and the MCP settings"; exit 1; }
-set -a
-# shellcheck disable=SC1091
-source "$BACKEND/.env"
-set +a
-: "${DATABASE_URL:?DATABASE_URL is missing from backend/.env}"
+if [ -f "$BACKEND/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$BACKEND/.env"
+    set +a
+fi
+: "${DATABASE_URL:?DATABASE_URL is missing: set it in backend/.env or in the environment}"
 
 export AWS_DEFAULT_REGION=${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region || echo us-east-1)}}
 REGION=$AWS_DEFAULT_REGION
