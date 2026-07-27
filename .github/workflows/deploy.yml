@@ -31,7 +31,7 @@ jobs:
       - name: Checks
         working-directory: backend
         run: |
-          pip install -r requirements.txt ruff
+          pip install -r requirements.txt ruff==0.15.22
           ruff check .
           pytest
 
