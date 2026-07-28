@@ -179,7 +179,11 @@ what the tool is normally used for.
   PagerDuty are a `Protocol` away (`backend/app/tickets.py`), but not written.
 - **The Function URL is `AuthType: NONE`.** Reads and the agent loop are open on
   purpose so judges can drive the demo without credentials; only the destructive
-  endpoints demand `X-API-Key`.
+  endpoints demand `X-API-Key`. And that key ships inside the JavaScript bundle,
+  because the memory explorer has to be able to edit and delete — so it stops
+  drive-by requests and crawlers, not anyone willing to open devtools. Real auth
+  here means a session in front of the app (Cognito, or an authorizer on the
+  Function URL), which is worth doing the moment this stops being a demo.
 - **`docs/recall-DOCUMENTATION.md` §10** describes history ingestion and offline
   evaluation. That section is design, not shipped code, and says so.
 - **No changefeeds and no multi-region.** Both are natural next steps for this
