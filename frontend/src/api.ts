@@ -14,9 +14,11 @@ import type {
 } from './types'
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api'
+const API_KEY = import.meta.env.VITE_DEMO_API_KEY ?? ''
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, init)
+  const headers = API_KEY ? { ...init?.headers, 'X-API-Key': API_KEY } : init?.headers
+  const res = await fetch(`${BASE}${path}`, { ...init, headers })
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`
     try {

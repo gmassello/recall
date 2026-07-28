@@ -14,6 +14,33 @@ if [ -f "$BACKEND/.env" ]; then
     source "$BACKEND/.env"
     set +a
 fi
+CLUSTER=${COCKROACH_CLUSTER:-${COCKROACH_MCP_CLUSTER_ID:-}}
+
+if [ "${CREATE_CLUSTER:-}" = 1 ]; then
+    command -v ccloud >/dev/null || { echo "ccloud CLI not found: https://www.cockroachlabs.com/docs/cockroachcloud/ccloud-get-started"; exit 1; }
+    echo "==> Creating the CockroachDB Basic cluster '$STACK'"
+    ccloud cluster create basic "$STACK" --cloud GCP --spend-limit 0
+    echo "Now put its connection string in backend/.env as DATABASE_URL and rerun without CREATE_CLUSTER."
+    exit 0
+fi
+
+if command -v ccloud >/dev/null && [ -n "$CLUSTER" ]; then
+    echo "==> Checking the CockroachDB cluster with ccloud"
+    LISTING=$(ccloud cluster list 2>&1) || {
+        echo "$LISTING"
+        echo "ccloud is not authenticated: run 'ccloud auth login' (it has no non-interactive mode)"
+        exit 1
+    }
+    ROW=$(echo "$LISTING" | grep -F "$CLUSTER" || true)
+    [ -n "$ROW" ] || { echo "cluster '$CLUSTER' is not in this organization"; exit 1; }
+    echo "$ROW" | grep -q CLUSTER_STATE_CREATED || {
+        echo "cluster '$CLUSTER' is not ready, deploying now would only fail at runtime:"
+        echo "$ROW"
+        exit 1
+    }
+    echo "    $CLUSTER is ready"
+fi
+
 : "${DATABASE_URL:?DATABASE_URL is missing: set it in backend/.env or in the environment}"
 
 export AWS_DEFAULT_REGION=${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region || echo us-east-1)}}
@@ -67,7 +94,8 @@ aws cloudformation deploy \
         "EmbeddingProvider=${EMBEDDING_PROVIDER:-gemini}" \
         "GeminiApiKey=${GEMINI_API_KEY:-}" \
         "GeminiModel=${GEMINI_MODEL:-gemini-flash-latest}" \
-        "GeminiEmbeddingModel=${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}"
+        "GeminiEmbeddingModel=${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}" \
+        "DemoApiKey=${DEMO_API_KEY:-}"
 
 out() {
     aws cloudformation describe-stacks --stack-name "$STACK" \
@@ -81,7 +109,7 @@ SITE_URL=$(out SiteUrl)
 echo "==> Building and uploading the frontend"
 cd "$ROOT/frontend"
 [ -d node_modules ] || npm ci
-VITE_API_BASE="${FUNCTION_URL%/}" npm run build
+VITE_API_BASE="${FUNCTION_URL%/}" VITE_DEMO_API_KEY="${DEMO_API_KEY:-}" npm run build
 aws s3 sync dist/ "s3://$SITE_BUCKET" --delete
 aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths '/*' >/dev/null
 

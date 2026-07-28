@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     cockroach_mcp_cluster_id: str = ""
 
     cors_origins: str = "http://localhost:5173"
+    demo_api_key: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

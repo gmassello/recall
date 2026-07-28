@@ -2,12 +2,17 @@ import logging
 from collections.abc import Iterator
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
 from app import diagnoses, tickets
 from app.agent.loop import handle, handle_events
-from app.api.deps import DIAGNOSIS_NOT_FOUND, TICKET_NOT_FOUND, get_ticket_or_404
+from app.api.deps import (
+    DIAGNOSIS_NOT_FOUND,
+    TICKET_NOT_FOUND,
+    get_ticket_or_404,
+    require_api_key,
+)
 from app.models import (
     GeneratedTicket,
     HandleResponse,
@@ -22,6 +27,7 @@ from seed.seed_memory import seed_incidents, seed_tickets
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
+protected = [Depends(require_api_key)]
 
 
 @router.get("", response_model=list[Ticket])
@@ -54,7 +60,7 @@ def seed_demo() -> None:
     seed_tickets()
 
 
-@router.delete("")
+@router.delete("", dependencies=protected)
 def clear_tickets() -> dict:
     return {"deleted": tickets.source.clear_open()}
 
@@ -64,7 +70,7 @@ def get_ticket(ticket_id: str) -> dict:
     return get_ticket_or_404(ticket_id)
 
 
-@router.patch("/{ticket_id}", response_model=Ticket)
+@router.patch("/{ticket_id}", response_model=Ticket, dependencies=protected)
 def edit_ticket(ticket_id: str, body: TicketUpdate) -> dict:
     row = tickets.source.update(ticket_id, body.model_dump(exclude_unset=True))
     if row is None:
@@ -72,7 +78,7 @@ def edit_ticket(ticket_id: str, body: TicketUpdate) -> dict:
     return row
 
 
-@router.delete("/{ticket_id}", status_code=204)
+@router.delete("/{ticket_id}", status_code=204, dependencies=protected)
 def delete_ticket(ticket_id: str) -> None:
     if not tickets.source.delete(ticket_id):
         raise HTTPException(status_code=404, detail=TICKET_NOT_FOUND)

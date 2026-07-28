@@ -54,6 +54,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GEMINI_EMBEDDING_MODEL: ${{ vars.GEMINI_EMBEDDING_MODEL }}
+          DEMO_API_KEY: ${{ secrets.DEMO_API_KEY }}
 
       - name: Why the stack failed
         if: failure()

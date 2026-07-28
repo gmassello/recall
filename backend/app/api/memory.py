@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app import memory
+from app.api.deps import require_api_key
 from app.models import Incident, IncidentUpdate, SupersedeRequest
 
 router = APIRouter(tags=["memory"])
+protected = [Depends(require_api_key)]
 
 
 @router.get("/memory", response_model=list[Incident])
@@ -11,7 +13,7 @@ def inspect_memory(service: str | None = None) -> list[dict]:
     return memory.list_memory(service)
 
 
-@router.patch("/memory/{incident_id}", response_model=Incident)
+@router.patch("/memory/{incident_id}", response_model=Incident, dependencies=protected)
 def edit_memory(incident_id: str, body: IncidentUpdate) -> dict:
     row = memory.update_incident(incident_id, body.model_dump(exclude_unset=True))
     if row is None:
@@ -19,13 +21,13 @@ def edit_memory(incident_id: str, body: IncidentUpdate) -> dict:
     return row
 
 
-@router.delete("/memory/{incident_id}", status_code=204)
+@router.delete("/memory/{incident_id}", status_code=204, dependencies=protected)
 def delete_memory(incident_id: str) -> None:
     if not memory.delete_incident(incident_id):
         raise HTTPException(status_code=404, detail="Incident not found")
 
 
-@router.delete("/memory")
+@router.delete("/memory", dependencies=protected)
 def clear_memory() -> dict:
     return {"deleted": memory.clear_memory()}
 

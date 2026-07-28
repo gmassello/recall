@@ -8,6 +8,10 @@ vector memory of past incidents (CockroachDB + `VECTOR`), and closes the loop by
 writing the postmortem back into that memory: every resolved incident improves
 the diagnosis of the next one.
 
+> **Live demo**: https://d2n13wfb8jv9v.cloudfront.net
+> **Submission**: [`SUBMISSION.md`](SUBMISSION.md) — which CockroachDB tools and
+> AWS services this uses, and how.
+
 ## Architecture
 
 ```
@@ -183,9 +187,19 @@ The stack lives in `backend/template.yaml` (SAM) and is applied by `deploy.sh`,
 which builds the Lambda package, deploys, uploads the Vite bundle to S3 and
 invalidates CloudFront.
 
-> The Function URL is `AuthType: NONE`. It exposes `DELETE /memory`,
-> `DELETE /tickets` and the token-burning `handle` endpoints to anyone with the
-> link. Fine for a hackathon demo, not something to leave published.
+> The Function URL is `AuthType: NONE`, so the reads and the `handle` endpoints
+> are open to anyone with the link. Set `DEMO_API_KEY` and the destructive ones
+> (`DELETE /memory`, `DELETE /tickets`, the `PATCH`es) start demanding an
+> `X-API-Key` header; leave it empty and they stay open, which is only fine
+> locally. The frontend picks the key up from `VITE_DEMO_API_KEY`, which
+> `deploy.sh` injects at build time.
+
+If `ccloud` is on the `PATH` and logged in, `deploy.sh` checks the cluster is up
+before building anything: a paused cluster would otherwise produce a green deploy
+and a Lambda that fails at runtime. Without `ccloud` the check is skipped.
+`CREATE_CLUSTER=1 ./deploy.sh` creates the free-tier Basic cluster and stops.
+This only works from a workstation — `ccloud` has no non-interactive login, so
+the CI deploy skips it.
 
 ### From CI (the usual path)
 
@@ -204,7 +218,7 @@ Then configure the repo:
 | `DATABASE_URL` | `COCKROACH_MCP_URL`, `COCKROACH_MCP_CLUSTER_ID` |
 | `COCKROACH_MCP_API_KEY` | `LLM_PROVIDER`, `EMBEDDING_PROVIDER` |
 | `GEMINI_API_KEY` | `GEMINI_MODEL`, `GEMINI_EMBEDDING_MODEL` |
-|  | `BEDROCK_MODEL_ID`, `BEDROCK_EMBEDDING_MODEL_ID` |
+| `DEMO_API_KEY` | `BEDROCK_MODEL_ID`, `BEDROCK_EMBEDDING_MODEL_ID` |
 
 The trust policy is matched against the `sub` claim GitHub emits, which carries
 the immutable numeric IDs of the owner and the repo, not their names — copying a

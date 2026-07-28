@@ -367,6 +367,7 @@ npm run dev                   # http://localhost:5173 (proxies /api → :8000)
 | `GEMINI_API_KEY` | if `gemini` | — | **Free** alternative to Bedrock (free tier): one key does LLM and embeddings |
 | `GEMINI_MODEL` | no | `gemini-flash-latest` | Chat model with function calling |
 | `GEMINI_EMBEDDING_MODEL` | no | `gemini-embedding-001` | `output_dimensionality=1024` → no table migration |
+| `DEMO_API_KEY` | no | — | Shared key demanded on the destructive endpoints (`DELETE`, `PATCH`) as `X-API-Key`. Empty leaves them open |
 | `MOCK_SEED` | no | — | Seed of the ticket generator → reproducible demo (§9) |
 
 AWS credentials come from the standard boto3 chain (profile, env vars or role).
@@ -441,11 +442,15 @@ section of the README; the step-by-step runbooks are the skills in
 
 ## 8. How it meets the hackathon requirements
 
+The full breakdown, and the one that goes into the submission form, is
+[`SUBMISSION.md`](../SUBMISSION.md) at the root of the repo. In short:
+
 - ✅ **CockroachDB #1** — Distributed Vector Indexing (semantic memory search).
 - ✅ **CockroachDB #2** — Managed MCP Server at **runtime** (option b) + in dev with Claude Code.
-- ✅ **AWS** — deployed on Lambda + S3 + CloudFront (SAM), with Amazon Bedrock (Claude Converse + Titan) as one of the supported providers.
+- ✅ **CockroachDB #3** — `ccloud` CLI: cluster preflight in `deploy.sh` when deploying from a workstation, and cluster creation behind `CREATE_CLUSTER=1`.
+- ✅ **AWS** — deployed on Lambda + Function URL + S3 + CloudFront (SAM) over GitHub OIDC, with Amazon Bedrock (Claude Converse + Titan) as one of the supported providers.
 - ✅ **Anthropic model** — Claude via Bedrock or via the Anthropic API, behind an agnostic layer that allows the swap.
-- ✅ Open-source repo (MIT) + demo + video < 3 min.
+- ✅ Open-source repo (MIT) + live demo. Video pending.
 
 ---
 
@@ -490,7 +495,12 @@ recording the video without surprises.
 
 ---
 
-## 10. History ingestion
+## 10. History ingestion — design, not implemented
+
+> **Nothing in this section ships today.** `backend/seed/` only holds
+> `seed_memory.py` and `tickets_seed.json`; `seed.import_history` and
+> `seed.evaluate` do not exist. This is the design for taking the memory layer to
+> a real customer, kept here because it is what the roadmap builds on.
 
 Before putting the agent in production with a customer, their incident history
 serves two purposes: **starting with real memory** instead of an empty one, and
@@ -567,9 +577,9 @@ between the system learned.
    postmortem just written, and the `score` of the one that got a 👍 improved. That
    delta *is* the demo.
 
-7. **Closing** — run `seed.evaluate` over a sample history and show the `recall@5`.
-   It closes the argument: this is not a demo with hand-picked cases, the system can
-   be measured.
+7. **Closing** — back in `MemoryExplorer`, the memory has one incident more than it
+   started with and the score of the cited one moved. That delta is the whole
+   argument: the loop is closed.
 
 Fix `MOCK_SEED` so steps 2 and 6 are reproducible while recording.
 

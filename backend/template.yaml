@@ -43,6 +43,11 @@ Parameters:
   GeminiEmbeddingModel:
     Type: String
     Default: gemini-embedding-001
+  DemoApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Shared key demanded on the destructive endpoints. Empty leaves them open.
 
 Resources:
   ApiFunction:
@@ -73,6 +78,7 @@ Resources:
           GEMINI_API_KEY: !Ref GeminiApiKey
           GEMINI_MODEL: !Ref GeminiModel
           GEMINI_EMBEDDING_MODEL: !Ref GeminiEmbeddingModel
+          DEMO_API_KEY: !Ref DemoApiKey
           CORS_ORIGINS: !Sub 'https://${SiteDistribution.DomainName},http://localhost:5173'
       FunctionUrlConfig:
         AuthType: NONE
