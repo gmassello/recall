@@ -62,7 +62,12 @@ aws cloudformation deploy \
         "CockroachMcpApiKey=${COCKROACH_MCP_API_KEY:-}" \
         "CockroachMcpClusterId=${COCKROACH_MCP_CLUSTER_ID:-}" \
         "BedrockModelId=${BEDROCK_MODEL_ID:-us.anthropic.claude-sonnet-4-5-20250929-v1:0}" \
-        "BedrockEmbeddingModelId=${BEDROCK_EMBEDDING_MODEL_ID:-amazon.titan-embed-text-v2:0}"
+        "BedrockEmbeddingModelId=${BEDROCK_EMBEDDING_MODEL_ID:-amazon.titan-embed-text-v2:0}" \
+        "LlmProvider=${LLM_PROVIDER:-gemini}" \
+        "EmbeddingProvider=${EMBEDDING_PROVIDER:-gemini}" \
+        "GeminiApiKey=${GEMINI_API_KEY:-}" \
+        "GeminiModel=${GEMINI_MODEL:-gemini-flash-latest}" \
+        "GeminiEmbeddingModel=${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}"
 
 out() {
     aws cloudformation describe-stacks --stack-name "$STACK" \

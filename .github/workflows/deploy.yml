@@ -49,6 +49,11 @@ jobs:
           COCKROACH_MCP_CLUSTER_ID: ${{ vars.COCKROACH_MCP_CLUSTER_ID }}
           BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID }}
           BEDROCK_EMBEDDING_MODEL_ID: ${{ vars.BEDROCK_EMBEDDING_MODEL_ID }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
+          EMBEDDING_PROVIDER: ${{ vars.EMBEDDING_PROVIDER }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_EMBEDDING_MODEL: ${{ vars.GEMINI_EMBEDDING_MODEL }}
 
       - name: Why the stack failed
         if: failure()

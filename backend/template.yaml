@@ -25,6 +25,24 @@ Parameters:
   BedrockEmbeddingModelId:
     Type: String
     Default: amazon.titan-embed-text-v2:0
+  LlmProvider:
+    Type: String
+    Default: gemini
+    Description: bedrock | anthropic | gemini
+  EmbeddingProvider:
+    Type: String
+    Default: gemini
+    Description: bedrock | gemini
+  GeminiApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+  GeminiModel:
+    Type: String
+    Default: gemini-flash-latest
+  GeminiEmbeddingModel:
+    Type: String
+    Default: gemini-embedding-001
 
 Resources:
   ApiFunction:
@@ -49,8 +67,11 @@ Resources:
           COCKROACH_MCP_CLUSTER_ID: !Ref CockroachMcpClusterId
           BEDROCK_MODEL_ID: !Ref BedrockModelId
           BEDROCK_EMBEDDING_MODEL_ID: !Ref BedrockEmbeddingModelId
-          LLM_PROVIDER: bedrock
-          EMBEDDING_PROVIDER: bedrock
+          LLM_PROVIDER: !Ref LlmProvider
+          EMBEDDING_PROVIDER: !Ref EmbeddingProvider
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+          GEMINI_EMBEDDING_MODEL: !Ref GeminiEmbeddingModel
           CORS_ORIGINS: !Sub 'https://${SiteDistribution.DomainName},http://localhost:5173'
       FunctionUrlConfig:
         AuthType: NONE
