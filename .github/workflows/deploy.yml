@@ -54,7 +54,8 @@ jobs:
         if: failure()
         run: |
           ID=$(aws cloudformation list-stacks \
-            --query "StackSummaries[?StackName=='recall']|[0].StackId" --output text)
+            --query "reverse(sort_by(StackSummaries[?StackName=='recall'], &CreationTime))[0].StackId" \
+            --output text)
           [ "$ID" = "None" ] && exit 0
           aws cloudformation describe-stack-events --stack-name "$ID" \
             --query "StackEvents[?contains(ResourceStatus,'FAILED')].[LogicalResourceId,ResourceStatusReason]" \

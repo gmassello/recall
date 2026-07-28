@@ -39,6 +39,13 @@ find "$BUILD" -name '__pycache__' -type d -prune -exec rm -rf {} +
 echo "    package size: $(du -sh "$BUILD" | cut -f1)  (Lambda limit: 250 MB unzipped)"
 
 echo "==> Deploying the stack"
+STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK" \
+    --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NONE)
+if [ "$STATUS" = ROLLBACK_COMPLETE ] || [ "$STATUS" = REVIEW_IN_PROGRESS ]; then
+    echo "    $STACK is in $STATUS (a first creation that failed): deleting it before retrying"
+    aws cloudformation delete-stack --stack-name "$STACK"
+    aws cloudformation wait stack-delete-complete --stack-name "$STACK"
+fi
 aws s3api head-bucket --bucket "$STAGING" 2>/dev/null || aws s3 mb "s3://$STAGING" --region "$REGION"
 aws cloudformation package \
     --template-file "$BACKEND/template.yaml" \
