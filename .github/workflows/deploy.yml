@@ -49,3 +49,13 @@ jobs:
           COCKROACH_MCP_CLUSTER_ID: ${{ vars.COCKROACH_MCP_CLUSTER_ID }}
           BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID }}
           BEDROCK_EMBEDDING_MODEL_ID: ${{ vars.BEDROCK_EMBEDDING_MODEL_ID }}
+
+      - name: Why the stack failed
+        if: failure()
+        run: |
+          ID=$(aws cloudformation list-stacks \
+            --query "StackSummaries[?StackName=='recall']|[0].StackId" --output text)
+          [ "$ID" = "None" ] && exit 0
+          aws cloudformation describe-stack-events --stack-name "$ID" \
+            --query "StackEvents[?contains(ResourceStatus,'FAILED')].[LogicalResourceId,ResourceStatusReason]" \
+            --output text
