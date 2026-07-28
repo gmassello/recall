@@ -14,14 +14,14 @@ the diagnosis of the next one.
 frontend (React + Vite, :5173)
         │  /api → proxy → :8000
 backend FastAPI (:8000)
-        │  agent loop (Claude via Bedrock) ── search_memory / query_incidents
+        │  agent loop (provider agnostic) ── search_memory / query_incidents
         ▼
 CockroachDB (incidents table with VECTOR(1024) + vector index)
 ```
 
 - **Backend** (`backend/`): FastAPI + LLM agent. The agent loop is provider
-  agnostic (Bedrock by default, Anthropic API as an alternative). Reads take a
-  dual path: Cockroach Managed MCP Server with a psycopg fallback.
+  agnostic — Gemini, Bedrock or the Anthropic API, see [Providers](#providers).
+  Reads take a dual path: Cockroach Managed MCP Server with a psycopg fallback.
 - **Frontend** (`frontend/`): React + Vite + TypeScript, no extra dependencies.
   Three views: ticket queue (manual creation or random generation, with editing
   and deletion), incident view (diagnosis with a **live SSE** evidence timeline)
@@ -31,13 +31,34 @@ CockroachDB (incidents table with VECTOR(1024) + vector index)
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.13 (what CI and Lambda pin; 3.11+ works locally)
 - Node 18+
 - A CockroachDB cluster (Cloud serverless is enough) with `VECTOR` support
-- Bedrock access, either through AWS credentials (SigV4) or an API key in
-  `BEDROCK_API_KEY`. **Titan embeddings are mandatory**: `ANTHROPIC_API_KEY` only
-  replaces the LLM, not embedding generation, so without Bedrock you cannot seed
-  or write to memory
+- One model provider — a `GEMINI_API_KEY` is enough on its own and is what the
+  deployed stack uses by default. See [Providers](#providers)
+
+## Providers
+
+Two independent switches, both in `backend/.env`:
+
+| Variable | Accepts | Default in `config.py` | What the stack deploys |
+|---|---|---|---|
+| `LLM_PROVIDER` | `gemini`, `bedrock`, `anthropic` | `bedrock` | `gemini` |
+| `EMBEDDING_PROVIDER` | `gemini`, `bedrock` | `bedrock` | `gemini` |
+
+- **Gemini** (`GEMINI_API_KEY`) covers both roles with a single key, on the free
+  tier. This is the cheapest way to run the project end to end.
+- **Bedrock** covers both roles too (Claude + Titan), through AWS credentials
+  (SigV4) or an API key in `BEDROCK_API_KEY`.
+- **Anthropic** (`ANTHROPIC_API_KEY`) only replaces the LLM. There is no Anthropic
+  embedder, so `EMBEDDING_PROVIDER` still has to be `gemini` or `bedrock`.
+
+Both embedders produce 1024 dimensions — Titan natively, Gemini through
+`output_dimensionality` plus a re-normalisation — so switching between them does
+not force a migration of the `VECTOR(1024)` column. It *does* mean the vectors
+already stored were produced by another model: re-embed the memory (wipe it and
+press **Load examples**, or edit each incident) or recall will compare apples to
+oranges.
 
 ## Getting started
 
@@ -48,7 +69,7 @@ cd backend
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-cp .env.example .env        # fill in DATABASE_URL, Cockroach MCP and Bedrock access
+cp .env.example .env        # fill in DATABASE_URL, Cockroach MCP and your provider key
 
 .venv/bin/python -m app.db              # creates/updates the schema
 .venv/bin/python -m seed.seed_memory    # example incidents + tickets (idempotent)
@@ -128,35 +149,13 @@ cases by hand:
 Seeding is idempotent: a second click changes nothing. The first one embeds 25
 incidents sequentially, so it takes a few seconds.
 
-### Migrating an older database
-
-The service values used to be `hardware-celular` / `software-celular`. If you
-have rows from before that rename:
-
-```sql
-UPDATE incidents SET service = replace(service, '-celular', '-phone') WHERE service LIKE '%-celular';
-UPDATE tickets   SET service = replace(service, '-celular', '-phone') WHERE service LIKE '%-celular';
-```
-
-Severity used to be `sev1`..`sev4`. If you have rows from before that rename:
-
-```sql
-UPDATE incidents SET severity = CASE severity
-    WHEN 'sev1' THEN 'critical' WHEN 'sev2' THEN 'high'
-    WHEN 'sev3' THEN 'medium'   WHEN 'sev4' THEN 'low'
-END WHERE severity LIKE 'sev_';
-UPDATE tickets SET severity = CASE severity
-    WHEN 'sev1' THEN 'critical' WHEN 'sev2' THEN 'high'
-    WHEN 'sev3' THEN 'medium'   WHEN 'sev4' THEN 'low'
-END WHERE severity LIKE 'sev_';
-```
-
-For a demo database, clearing both tables and pressing **Load examples** works too.
+If a database is left over from an older schema, or from another embedding model,
+the shortest fix is to clear both tables and press **Load examples** again.
 
 ## Deploy on AWS
 
 Four AWS services, all inside the always-free tier — the only thing you pay for
-is Bedrock tokens.
+is model tokens, and with Gemini on the free tier that is nothing either.
 
 ```
 browser
@@ -164,7 +163,8 @@ browser
   └─ fetch + EventSource ─────────────────────→ Lambda Function URL
                                                   (InvokeMode: RESPONSE_STREAM)
                                                      ↓ Web Adapter → uvicorn → FastAPI
-                                                     ├→ Bedrock (execution role, SigV4)
+                                                     ├→ LLM provider (Gemini API by default,
+                                                     │   Bedrock via the execution role)
                                                      └→ CockroachDB (MCP + psycopg)
 ```
 
@@ -175,12 +175,45 @@ browser
   streaming incrementally instead of buffering to the end.
 - **S3 + CloudFront** serve the frontend. The bucket stays private: CloudFront
   reads it through an Origin Access Control.
-- Bedrock is reached through the function's execution role, so no keys are
-  deployed. `BEDROCK_API_KEY` stays empty.
+- If you deploy on Bedrock, it is reached through the function's execution role,
+  so no keys are deployed and `BEDROCK_API_KEY` stays empty. Gemini and Anthropic
+  do need their key as a stack parameter.
 
-Everything lives in `backend/template.yaml` (SAM) and deploys with one command.
-Both the stack parameters and the AWS credentials are read from `backend/.env`,
-so no secret is committed and nothing has to be exported by hand:
+The stack lives in `backend/template.yaml` (SAM) and is applied by `deploy.sh`,
+which builds the Lambda package, deploys, uploads the Vite bundle to S3 and
+invalidates CloudFront.
+
+> The Function URL is `AuthType: NONE`. It exposes `DELETE /memory`,
+> `DELETE /tickets` and the token-burning `handle` endpoints to anyone with the
+> link. Fine for a hackathon demo, not something to leave published.
+
+### From CI (the usual path)
+
+The `Deploy` workflow (`.github/workflows/deploy.yml`) is a `workflow_dispatch`:
+it runs `ruff` and `pytest`, assumes an AWS role over OIDC — no long-lived keys
+in GitHub — and then runs the same `deploy.sh`. If the stack fails it prints the
+failing CloudFormation events.
+
+One-time bootstrap: deploy `infra/github-oidc.yaml`, which creates the OIDC
+provider and the `recall-github-deploy` role, and take its `RoleArn` output.
+Then configure the repo:
+
+| Secrets | Variables |
+|---|---|
+| `AWS_ROLE_ARN` | `AWS_REGION` |
+| `DATABASE_URL` | `COCKROACH_MCP_URL`, `COCKROACH_MCP_CLUSTER_ID` |
+| `COCKROACH_MCP_API_KEY` | `LLM_PROVIDER`, `EMBEDDING_PROVIDER` |
+| `GEMINI_API_KEY` | `GEMINI_MODEL`, `GEMINI_EMBEDDING_MODEL` |
+|  | `BEDROCK_MODEL_ID`, `BEDROCK_EMBEDDING_MODEL_ID` |
+
+The trust policy is matched against the `sub` claim GitHub emits, which carries
+the immutable numeric IDs of the owner and the repo, not their names — copying a
+`repo:owner/name:ref:...` subject by hand does not work.
+
+### From your machine
+
+`deploy.sh` reads both the stack parameters and the AWS credentials from
+`backend/.env`, so nothing has to be exported by hand:
 
 ```bash
 # backend/.env
@@ -194,6 +227,8 @@ AWS_SESSION_TOKEN=...      # only for temporary credentials
 > If you already have `AWS_ACCESS_KEY_ID` and friends exported in your shell,
 > unset them. The backend gives precedence to the real environment variable over
 > the `.env` file, so a stale export silently wins over the file.
+
+### Checking the deploy
 
 The script prints the app URL and the API URL when it finishes. To check that
 the stream really is incremental — the events must arrive with separate
@@ -209,22 +244,38 @@ curl -N --no-buffer "$FN/tickets/$TID/handle/stream" \
 
 Notes:
 
+- The Lambda package is built from `backend/requirements-lambda.txt`, not from
+  `requirements.txt`: it is the same list minus `pytest` and minus the SDKs the
+  deployed provider does not need. Switching `LLM_PROVIDER` to a provider whose
+  SDK is not in that file produces a function that dies on import.
+- The package is built for `arm64` / Python 3.13, so the `pip install` needs
+  `--platform` (see `deploy.sh`): installing macOS wheels produces a function that
+  dies importing `psycopg`.
+- `backend/certs/cockroach-root.crt` travels inside the package and
+  `PGSSLROOTCERT` points at it. `sslmode=verify-full` needs a CA and
+  `sslrootcert=system` does not provide one here: the OpenSSL bundled in the
+  `psycopg[binary]` wheel looks in the `OPENSSLDIR` of its own build, which does
+  not exist on Lambda. Point at the CA with the environment variable, not with a
+  parameter in `DATABASE_URL` — the URL parameter wins over the variable.
+- The Web Adapter layer is pinned to a specific version in `template.yaml`. AWS
+  retires old ones: if the deploy fails resolving the layer ARN, bump it.
 - `AWS_REGION` is a reserved Lambda variable and cannot be set in the template;
-  the function inherits the region it is deployed to. Since the default
-  `BEDROCK_MODEL_ID` uses the `us.` inference profile prefix, deploy to a `us-*`
-  region or override the parameter.
-- The Lambda package is built for `arm64` / Python 3.13, so the `pip install`
-  needs `--platform` (see `deploy.sh`): installing macOS wheels produces a
-  function that dies importing `psycopg`.
+  the function inherits the region it is deployed to. If you deploy on Bedrock,
+  the `BEDROCK_MODEL_ID` inference profile prefix has to match that region
+  (`us.` for `us-*`, and so on).
 - Schema creation and seeding are not part of the deploy. Run `python -m app.db`
   and `python -m seed.seed_memory` locally against the same `DATABASE_URL`, or
   use the **Load examples** button once the app is up.
+
+Runbooks for all of this live in `.claude/skills/`: `recall-deploy`,
+`recall-bootstrap-aws` and `recall-switch-llm-provider`.
 
 ## Tests
 
 ```bash
 cd backend
-.venv/bin/pytest        # pure unit tests: no DB or AWS needed
+.venv/bin/pip install ruff==0.15.22    # not in requirements.txt; same pin as CI
+.venv/bin/pytest        # pure unit tests: no DB, no AWS, no model calls
 .venv/bin/ruff check .
 
 cd ../frontend

@@ -32,17 +32,21 @@ That closed loop (read → reason → write → learn) is what makes the memory
 | Layer | Choice | Note |
 |-------|--------|------|
 | Memory | **CockroachDB** | Distributed Vector Indexing + Managed MCP Server |
-| AI | **Agnostic** layer (`LLMProvider`) | Default: **Claude via Amazon Bedrock** |
-| Embeddings | Amazon Titan v2 (Bedrock) | 1024 dims (matches `VECTOR(1024)`) |
+| AI | **Agnostic** layer (`LLMProvider`) | Gemini, Claude via Amazon Bedrock, or the Anthropic API |
+| Embeddings | Gemini or Amazon Titan v2 | 1024 dims either way (matches `VECTOR(1024)`) |
 | Backend | **FastAPI** (REST) | Automatic docs at `/docs` |
 | Frontend | **React + Vite + TypeScript** | 3 views |
+| Deploy | **Lambda + S3 + CloudFront** (SAM) | Web Adapter in `RESPONSE_STREAM`, so SSE stays incremental |
 
 Principles that do not break:
 
 - **Provider-agnostic AI**: everything goes through `providers/base.py`
   (`LLMProvider` / `EmbeddingProvider`). Switching models is one env var
   (`LLM_PROVIDER` / `EMBEDDING_PROVIDER`). The agent loop never knows the concrete
-  provider. Default = Bedrock (satisfies AWS + uses an Anthropic model).
+  provider. The LLM can be `gemini`, `bedrock` or `anthropic`; the embedder,
+  `gemini` or `bedrock`. The deployed stack runs on Gemini (one free-tier key
+  covers both roles); Bedrock is the path that satisfies AWS with an Anthropic
+  model, through the Lambda execution role.
 - **MCP at runtime (option b)**: the reads the agent decides to make with tools
   (`search_memory`, `query_incidents`) go through CockroachDB's Managed MCP Server
   — the same protocol used in dev with Claude Code. Everything else goes through a
@@ -103,7 +107,7 @@ CockroachDB
         │ + read fallback if the MCP does not respond
      FastAPI
 
-AI: LLMProvider + EmbeddingProvider → default Bedrock (Claude + Titan)
+AI: LLMProvider + EmbeddingProvider → Gemini (deployed default) · Bedrock (Claude + Titan) · Anthropic
 ```
 
 ---
@@ -188,18 +192,33 @@ CREATE TABLE diagnoses (
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET  | `/health` | Health check |
+| GET  | `/health` | Health check; includes the state of the MCP (`probe()`) |
 | GET  | `/tickets` | Queue. Filters: `?service=`, `?severity=`, `?status=`, `?search=` (free-text match on the title; the mock source implements it as `ILIKE`), `?order=asc\|desc`. Without `status` it keeps the historical behaviour and hides resolved tickets |
 | POST | `/tickets` | Ingestion (manual mock or alert webhook) |
 | POST | `/tickets/generate?n=1` | Generates `n` synthetic tickets and queues them (§9) |
 | POST | `/tickets/seed` | Loads the example incidents and tickets (idempotent) |
+| DELETE | `/tickets` | Empties the queue (only `status != 'resolved'`) |
 | GET  | `/tickets/{id}` | Ticket detail |
+| PATCH | `/tickets/{id}` | Edits title, symptom, service or severity |
+| DELETE | `/tickets/{id}` | Deletes a ticket (its diagnosis goes with it, `ON DELETE CASCADE`) |
 | POST | `/tickets/{id}/handle` | Runs the agent loop → diagnosis + evidence |
-| GET  | `/tickets/{id}/handle/stream` | Same as `handle` but over SSE: `evidence` (one per tool), `result` (full response) and `error` events |
+| GET  | `/tickets/{id}/handle/stream` | Same as `handle` but over SSE: `evidence` (one per tool), `result` (full response) and `agent_error` events |
 | GET  | `/tickets/{id}/diagnosis` | Last saved diagnosis of the ticket, evidence included (404 if never diagnosed) |
 | POST | `/incidents/{ticket_id}/resolve` | Writes the postmortem (memory grows) |
 | POST | `/incidents/{ticket_id}/feedback` | 👍/👎 adjusts the quality of the memory |
 | GET  | `/memory?service=...` | Memory inspection |
+| PATCH | `/memory/{id}` | Edits an incident; re-embeds if the title or the symptom changed |
+| DELETE | `/memory/{id}` | Deletes an incident and clears any dangling `superseded_by` pointing at it |
+| DELETE | `/memory` | Wipes the whole memory |
+| POST | `/memory/{id}/supersede` | Marks the incident as superseded by another |
+
+Both `/incidents/...` paths take a **ticket** id, not an incident id: the resolve
+is what turns a ticket into an incident, and the feedback hangs off the diagnosis
+of that ticket.
+
+`POST /tickets/{id}/handle` and its SSE variant also move the ticket to
+`handling` while the agent runs, and roll it back to `open` if the agent fails or
+the stream is cut short.
 
 The `handle` response includes the **evidence trail** (which tools the agent used
 and what it recalled), which feeds the live timeline in the frontend.
@@ -262,33 +281,43 @@ and what it recalled), which feeds the live timeline in the frontend.
 ```
 backend/
   app/
-    main.py                  # FastAPI app
-    config.py                # env vars
+    main.py                  # FastAPI app + CORS + GET /health
+    config.py                # env vars and tuning knobs (one pydantic Settings)
     db.py                    # direct connection (writes) + init schema
     models.py                # pydantic: Ticket, Incident, Diagnosis, ...
     providers/
       base.py                # LLMProvider, EmbeddingProvider, ToolSpec (canonical)
-      bedrock.py             # BedrockClaudeProvider + BedrockTitanEmbedder (default)
-      anthropic_provider.py  # demonstrates the model swap
+      bedrock.py             # BedrockClaudeProvider + BedrockTitanEmbedder
+      anthropic_provider.py  # LLM only, no embedder
+      gemini_provider.py     # GeminiProvider + GeminiEmbedder (deployed default)
       registry.py            # factory from env
     mcp/
       cockroach_client.py    # runtime MCP client (service-account key)
     tickets.py               # TicketSource + MockTicketSource + TicketGenerator
     memory.py                # temporal recall, store, feedback, supersede
+    diagnoses.py             # last HandleResponse per ticket (JSONB)
     postmortem.py            # write_postmortem()
     agent/
       tools.py               # ToolSpecs + handlers (resolved via MCP)
       loop.py                # tool-use loop, provider agnostic
     api/
+      deps.py                # get_ticket_or_404 + shared error strings
       tickets.py  incidents.py  memory.py
   seed/
     tickets_seed.json      # ticket fixture
     seed_memory.py         # example memory
-  schema.sql   requirements.txt   .env.example
+  certs/cockroach-root.crt # CA bundle shipped inside the Lambda package
+  run.sh                   # Lambda entrypoint (the Web Adapter execs it)
+  template.yaml            # SAM stack: Lambda + Function URL + S3 + CloudFront
+  schema.sql   requirements.txt   requirements-lambda.txt   .env.example
 frontend/
   package.json  vite.config.ts  tsconfig.json  index.html
-  src/  main.tsx  App.tsx  api.ts  types.ts  styles.css
+  src/  main.tsx  App.tsx  api.ts  types.ts  hooks.ts  styles.css
         components/  TicketQueue.tsx  IncidentView.tsx  MemoryExplorer.tsx
+deploy.sh                  # build + deploy + upload the bundle + invalidate
+infra/github-oidc.yaml     # OIDC provider + deploy role (one-time bootstrap)
+.github/workflows/deploy.yml
+.claude/skills/            # runbooks: deploy, bootstrap, switch provider
 ```
 
 ---
@@ -297,14 +326,17 @@ frontend/
 
 ### Prerequisites
 - **CockroachDB Cloud** (Basic plan, free): connection string + service account API key (for the MCP).
-- **AWS with Bedrock**: access enabled for Claude and Titan Text Embeddings V2.
-- **Python 3.11+** and **Node 18+**.
+- **One model provider**, any of the three: a Google AI Studio key (`gemini`, free
+  tier, covers LLM *and* embeddings — this is what the deployed stack uses),
+  **AWS with Bedrock** (Claude + Titan Text Embeddings V2 enabled), or an Anthropic
+  key for the LLM combined with Gemini or Bedrock for the embeddings.
+- **Python 3.13** (what CI and Lambda pin; 3.11+ works locally) and **Node 18+**.
 
 ### Backend
 ```bash
 cd backend
 pip install -r requirements.txt
-cp .env.example .env          # DATABASE_URL, AWS, COCKROACH_MCP_API_KEY
+cp .env.example .env          # DATABASE_URL, COCKROACH_MCP_API_KEY, provider key
 python -m app.db              # creates the schema
 python -m seed.seed_memory    # example memory + tickets
 uvicorn app.main:app --reload # http://localhost:8000/docs
@@ -333,7 +365,7 @@ npm run dev                   # http://localhost:5173 (proxies /api → :8000)
 | `BEDROCK_EMBEDDING_MODEL_ID` | no | `amazon.titan-embed-text-v2:0` | Titan v2, 1024 dims. Bare ID: embedding models do not use inference profiles |
 | `ANTHROPIC_API_KEY` | if `anthropic` | — | Only for the provider swap |
 | `GEMINI_API_KEY` | if `gemini` | — | **Free** alternative to Bedrock (free tier): one key does LLM and embeddings |
-| `GEMINI_MODEL` | no | `gemini-2.5-flash` | Chat model with function calling |
+| `GEMINI_MODEL` | no | `gemini-flash-latest` | Chat model with function calling |
 | `GEMINI_EMBEDDING_MODEL` | no | `gemini-embedding-001` | `output_dimensionality=1024` → no table migration |
 | `MOCK_SEED` | no | — | Seed of the ticket generator → reproducible demo (§9) |
 
@@ -373,9 +405,11 @@ inference profile**, not over the foundation model.
 LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=...
 ```
-The rest of the code does not change. For the hackathon, keep `bedrock` to satisfy AWS.
+The rest of the code does not change. `bedrock` is the one that satisfies AWS with
+an Anthropic model, through the Lambda execution role and without deploying keys.
 
-**Free** end-to-end alternative (LLM + embeddings) with no AWS account:
+**Free** end-to-end alternative (LLM + embeddings) with no AWS account — and what
+the deployed stack runs on:
 ```
 # backend/.env
 LLM_PROVIDER=gemini
@@ -387,14 +421,30 @@ fits `VECTOR(1024)` without a migration. They can be mixed: keep
 `LLM_PROVIDER=anthropic` and use only `EMBEDDING_PROVIDER=gemini` to cover what the
 corporate gateway does not provide (Titan).
 
+Two things a switch does not do on its own. Changing the **embedder** leaves the
+stored vectors as they are: they came out of another model, so the memory has to
+be re-embedded or recall compares incomparable things. And changing the **LLM** on
+a deployed stack needs its SDK inside `requirements-lambda.txt`, which is a
+shorter list than `requirements.txt` — otherwise the function dies on import.
+
+### Deploying
+
+`.github/workflows/deploy.yml` (`workflow_dispatch`, OIDC, gated on `ruff` +
+`pytest`) runs `deploy.sh`, which applies `backend/template.yaml`: Lambda behind a
+Function URL in `RESPONSE_STREAM`, S3 and CloudFront for the bundle. The repo
+secrets and variables it needs, the one-time `infra/github-oidc.yaml` bootstrap
+and the per-stack gotchas are in the [Deploy on AWS](../README.md#deploy-on-aws)
+section of the README; the step-by-step runbooks are the skills in
+`.claude/skills/`.
+
 ---
 
 ## 8. How it meets the hackathon requirements
 
 - ✅ **CockroachDB #1** — Distributed Vector Indexing (semantic memory search).
 - ✅ **CockroachDB #2** — Managed MCP Server at **runtime** (option b) + in dev with Claude Code.
-- ✅ **AWS** — Amazon Bedrock (Claude Converse + Titan) as the default provider; Lambda/ECS/S3 optional at deploy.
-- ✅ **Anthropic model** — Claude via Bedrock, with an agnostic layer that allows the swap.
+- ✅ **AWS** — deployed on Lambda + S3 + CloudFront (SAM), with Amazon Bedrock (Claude Converse + Titan) as one of the supported providers.
+- ✅ **Anthropic model** — Claude via Bedrock or via the Anthropic API, behind an agnostic layer that allows the swap.
 - ✅ Open-source repo (MIT) + demo + video < 3 min.
 
 ---
@@ -529,10 +579,11 @@ Fix `MOCK_SEED` so steps 2 and 6 are reproducible while recording.
 
 1. ~~**SSE** on `/tickets/{id}/handle/stream` + consumption in the frontend to watch the agent reason live.~~ **Done**: the frontend consumes the stream with `EventSource` and paints the evidence timeline live.
 2. **Contradiction detection** that triggers `supersede()` automatically.
-3. **OpenAIProvider** following `providers/base.py` (demonstrates the agnosticism).
-4. **Deploy** on AWS (Lambda/ECS + S3) — adds "production readiness".
-5. **Parallelize the embeddings** of `import_history` for large histories.
-6. **LLM judge** in `evaluate` over the quality of the written `root_cause`, on top
+3. ~~**Deploy** on AWS (Lambda/ECS + S3) — adds "production readiness".~~ **Done**: SAM stack (Lambda + Function URL + S3 + CloudFront) shipped by a GitHub Actions workflow over OIDC.
+4. **Auth on the Function URL** — it is `AuthType: NONE` today, which leaves the destructive endpoints open to anyone with the link.
+5. **OpenAIProvider** following `providers/base.py` (demonstrates the agnosticism).
+6. **Parallelize the embeddings** of `import_history` for large histories.
+7. **LLM judge** in `evaluate` over the quality of the written `root_cause`, on top
    of the `recall@k` that already measures retrieval.
 
 ---
