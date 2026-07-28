@@ -33,7 +33,7 @@ mkdir -p "$BUILD"
 python3 -m pip install -q -r "$BACKEND/requirements-lambda.txt" -t "$BUILD" \
     --platform manylinux2014_aarch64 --platform manylinux_2_28_aarch64 \
     --python-version 3.13 --only-binary=:all:
-cp -r "$BACKEND/app" "$BACKEND/seed" "$BACKEND/run.sh" "$BUILD/"
+cp -r "$BACKEND/app" "$BACKEND/seed" "$BACKEND/certs" "$BACKEND/run.sh" "$BUILD/"
 chmod +x "$BUILD/run.sh"
 find "$BUILD" -name '__pycache__' -type d -prune -exec rm -rf {} +
 echo "    package size: $(du -sh "$BUILD" | cut -f1)  (Lambda limit: 250 MB unzipped)"

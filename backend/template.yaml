@@ -61,6 +61,7 @@ Resources:
           AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
           AWS_LWA_INVOKE_MODE: response_stream
           PORT: 8000
+          PGSSLROOTCERT: /var/task/certs/cockroach-root.crt
           DATABASE_URL: !Ref DatabaseUrl
           COCKROACH_MCP_URL: !Ref CockroachMcpUrl
           COCKROACH_MCP_API_KEY: !Ref CockroachMcpApiKey
