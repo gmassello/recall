@@ -48,12 +48,12 @@ def _recall_sql(embedding: list[float], service: str | None) -> tuple[str, list]
     if service:
         where = f"WHERE service = %s AND {CURRENT_SQL_FILTER}"
         params.append(service)
-    params += [vector, settings.recall_candidates]
+    params.append(settings.recall_candidates)
     sql = f"""
         SELECT {MEMORY_COLUMNS}, {distance} AS distance
         FROM incidents
         {where}
-        ORDER BY {distance}
+        ORDER BY distance
         LIMIT %s
     """
     return sql, params

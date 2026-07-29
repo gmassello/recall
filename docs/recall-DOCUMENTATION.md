@@ -566,8 +566,8 @@ between the system learned.
 1. **Initial state** — `MemoryExplorer` with the seeded memory (`seed_memory.py`).
    Show that there are old incidents, one of them with an expired `valid_until`.
 2. **A ticket comes in** — **Generate random** button (§9). A synthetic incident
-   shows up in the queue, e.g. *"p99 latency rose to 4200ms at checkout"*. With a
-   fixed `MOCK_SEED`, it is always the same one.
+   shows up in the queue, e.g. *"[software-pc] Windows goes into a reboot loop
+   after the last update"*. With a fixed `MOCK_SEED`, it is always the same one.
 3. **Handle** — the timeline shows the agent picking `search_memory`, the recalled
    evidence and the diagnosis. Point out that the stale incident was **not** recalled.
 4. **Resolve** — the postmortem is written. Memory grows: the new incident shows up

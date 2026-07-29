@@ -64,9 +64,11 @@ falls back to psycopg only when the MCP is unavailable.
   `CREATE VECTOR INDEX incidents_embedding_idx ON incidents (embedding vector_cosine_ops)`.
 - `backend/app/db.py:56` enables `feature.vector_index.enabled` before applying
   the schema.
-- Recall keeps `ORDER BY embedding <=> %s::VECTOR(n)` textually intact so the
-  vector index can accelerate it, over-fetches `recall_candidates=40`, then
-  re-ranks in Python:
+- Recall selects `embedding <=> %s::VECTOR(n) AS distance` and orders by that
+  alias — `EXPLAIN` shows it planning as `vector search →
+  incidents@incidents_embedding_idx`, same as repeating the expression, while
+  keeping the query under the 16 KB the Managed MCP Server accepts. It
+  over-fetches `recall_candidates=40`, then re-ranks in Python:
   `rank_score = distance - 0.15*quality_score + 0.10*age_penalty` (lower is
   better), cut at `recall_top_k=5`.
 - Validity is enforced in SQL: an incident is recallable only while

@@ -108,9 +108,20 @@ depends on that.
 ### Ranking and validity
 
 `rank_score = distance - w_quality*quality_score + w_age*age_penalty` (lower is
-better). The `ORDER BY embedding <=> %s::VECTOR(n)` must stay textually like that
-so the Cockroach vector index can accelerate it; the re-ranking happens in Python
-over `recall_candidates` and is cut at `recall_top_k`.
+better). The re-ranking happens in Python over `recall_candidates` and is cut at
+`recall_top_k`.
+
+**The embedding literal must appear exactly once in the recall SQL.** The Managed
+MCP Server rejects queries over 16384 characters, and one 1024-float literal is
+~11 KB: emitting it twice (a `distance` column plus an `ORDER BY` on the same
+expression) pushes the query to ~22 KB, and every semantic recall silently falls
+back to psycopg. That is why the query computes `... AS distance` and then does
+`ORDER BY distance`. `EXPLAIN` confirms the alias plans identically to repeating
+the expression — `vector search → incidents@incidents_embedding_idx` in both —
+so the vector index is not lost. `tests/test_recall_sql.py` is the gate.
+
+(With a `service` filter the planner prefers `incidents_service_idx` over the
+vector index. That predates this and is reasonable at the current table size.)
 
 An incident is current if `valid_until` is null or in the future and
 `superseded_by` is null. That condition is duplicated on purpose in two places —
