@@ -45,7 +45,7 @@ frame proves vector recall, quality ranking and the validity filter at once.
 | 0:32 | 10 s | Scroll to the pair: **"Windows reboot loop after an update"** (expired, superseded) and **"Reboot loop after an update: current procedure"** | "This procedure expired and was superseded by this one. Watch what the agent does with that." |
 | 0:42 | 13 s | *Ticket queue* → **New ticket** → paste ticket 1 → create | "A ticket comes in: a PC stuck in a reboot loop after a Windows update." |
 | 0:55 | 17 s | Open it, hit **Diagnose**. Let the evidence timeline paint live | "The agent picks its own tools. This is live — server-sent events straight from Lambda. It searches memory semantically, then queries the incident table. And every step reports how it reached the database: `via mcp` — the CockroachDB Cloud Managed MCP Server, in the request path, not just in my editor." |
-| 1:12 | 18 s | Diagnosis panel, then **Most relevant incident** | "Root cause, mitigation steps, confidence zero-point-nine. And the incident it leaned on is the *current* procedure — not the superseded one. That filter runs in SQL, so stale knowledge is never even a candidate." |
+| 1:12 | 18 s | Diagnosis panel, then **Most relevant incident** | "Root cause, mitigation steps, high confidence. And the incident it leaned on is the *current* procedure — not the superseded one. That filter runs in SQL, so stale knowledge is never even a candidate." |
 | 1:30 | 20 s | Fill Root cause / Resolution → **Resolve and write postmortem** → back to *Incident memory*, the new row on top | "A human confirms and resolves. The postmortem is embedded and written straight back into memory. Twenty-six now. That is the loop." |
 | 1:50 | 25 s | *Ticket queue* → ticket 2 → **Diagnose** → point at **Most relevant incident** | "Same class of problem again. This time the top hit is the postmortem we wrote sixty seconds ago. The system got better between two tickets." |
 | 2:15 | 17 s | Ticket 3 (`software-phone`) → **Diagnose** → hold on **confidence 0.1** and the root-cause text | "And when there is no precedent, it says so — confidence zero-point-one — instead of inventing a root cause." |
@@ -63,8 +63,11 @@ costs a full 10-second agent run. Second cut: trim the memory tour at 0:12 to 12
 > **Title:** PC restarts over and over after last night's Windows update
 > **Symptom:** It boots, shows the logo, restarts. Loops forever. Started right after the update installed.
 
-Verified result: confidence **0.9**, most relevant incident **"Reboot loop after an
-update: current procedure"**, score 0.1318.
+Verified result: most relevant incident **"Reboot loop after an update: current
+procedure"** (score ~0.13), both evidence steps `via: mcp`, confidence **0.9–0.95**.
+The recalled incident is stable across runs; the exact confidence is not, since
+it comes from the model — so the narration says "high confidence", not a number.
+Read whatever is on screen.
 
 **Ticket 2** — `software-pc`, severity `high`. Run it *after* resolving ticket 1.
 
@@ -77,7 +80,8 @@ update: current procedure"**, score 0.1318.
 > **Symptom:** Since updating the phone OS, the banking app closes by itself a few seconds after opening. Reinstalling did not help.
 
 Verified result: confidence **0.1**, root cause *"No relevant past repairs or
-precedents were found in memory…"*. On this one, do **not** linger on the *Most
+precedents were found in memory…"*. Here the low confidence is the whole point,
+so this one is worth reading out loud. On this one, do **not** linger on the *Most
 relevant incident* panel — it still shows the nearest neighbour even though the
 agent correctly reports no precedent. Keep the camera on the confidence and the
 root-cause sentence.
