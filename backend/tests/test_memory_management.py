@@ -7,11 +7,11 @@ from seed import seed_memory
 
 ROW = {
     "id": "abc",
-    "title": "slow checkout",
-    "symptom": "high p99 latency",
+    "title": "endless reboot loop",
+    "symptom": "restarts right after the logo",
     "root_cause": None,
     "resolution": None,
-    "service": "payments-api",
+    "service": "software-pc",
     "severity": "high",
     "created_at": "2026-07-20T00:00:00Z",
     "resolved_at": None,
@@ -54,13 +54,13 @@ def test_editing_title_or_symptom_reembeds(captured, embedder):
     memory.update_incident("abc", {"title": "new title"})
 
     update_sql = captured[-1][0]
-    embedder.embed.assert_called_once_with("new title high p99 latency")
+    embedder.embed.assert_called_once_with("new title restarts right after the logo")
     assert "embedding = %s" in update_sql
     assert "title = %s" in update_sql
 
 
 def test_editing_the_title_to_the_same_value_does_not_reembed(captured, embedder):
-    memory.update_incident("abc", {"title": "slow checkout"})
+    memory.update_incident("abc", {"title": "endless reboot loop"})
 
     embedder.embed.assert_not_called()
     assert "embedding" not in captured[-1][0]

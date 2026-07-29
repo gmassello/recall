@@ -12,9 +12,9 @@ from app.tickets import MockTicketSource, TicketGenerator, TicketSource
 ROW = {
     "id": "t1",
     "external_id": None,
-    "title": "[payments-api] slow checkout",
-    "description": "p99 latency at 4200ms",
-    "service": "payments-api",
+    "title": "[software-pc] endless reboot loop",
+    "description": "restarts right after the logo, over and over",
+    "service": "software-pc",
     "severity": "high",
     "status": "open",
     "source": "generated",
@@ -33,7 +33,7 @@ def test_the_generated_ticket_has_the_shape_of_the_spec():
         "severity",
         "source",
     }
-    assert generated.symptom == "p99 latency at 4200ms"
+    assert generated.symptom == "restarts right after the logo, over and over"
 
 
 def test_the_protocol_declares_everything_the_api_uses():

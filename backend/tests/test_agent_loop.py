@@ -6,15 +6,15 @@ from app.providers.base import ToolUse, Turn
 
 TICKET = {
     "id": "ticket-1",
-    "title": "[payments-api] slow checkout",
-    "description": "p99 latency at 4200ms",
-    "service": "payments-api",
+    "title": "[software-pc] endless reboot loop",
+    "description": "restarts right after the logo, over and over",
+    "service": "software-pc",
     "severity": "high",
 }
 
 VALID = {
-    "root_cause": "Connection pool exhausted",
-    "mitigation_steps": ["Raise max_connections"],
+    "root_cause": "Corrupted update database",
+    "mitigation_steps": ["Clear the update cache"],
     "confidence": 0.8,
 }
 
@@ -55,7 +55,7 @@ def test_valid_diagnosis_on_first_attempt(fake_llm):
 
     response = loop.handle(TICKET)
 
-    assert response.diagnosis.root_cause == "Connection pool exhausted"
+    assert response.diagnosis.root_cause == "Corrupted update database"
     assert response.diagnosis.confidence == 0.8
 
 
@@ -102,7 +102,7 @@ def test_does_not_diagnose_in_the_same_turn_it_searches(fake_llm, monkeypatch, c
     assert deferred, "the premature submit_diagnosis did not get its tool_result"
     assert deferred[0].content == loop.PREMATURE_DIAGNOSIS
 
-    assert response.diagnosis.root_cause == "Connection pool exhausted"
+    assert response.diagnosis.root_cause == "Corrupted update database"
     assert [step.tool for step in response.evidence] == ["search_memory"]
 
 
@@ -111,7 +111,7 @@ def test_the_model_receives_the_error_and_corrects_itself(fake_llm):
 
     response = loop.handle(TICKET)
 
-    assert response.diagnosis.root_cause == "Connection pool exhausted"
+    assert response.diagnosis.root_cause == "Corrupted update database"
 
     second_call = llm.calls[1]
     errors = [
@@ -152,7 +152,7 @@ def test_a_text_only_turn_asks_for_the_diagnosis_instead_of_stopping(fake_llm, c
 
     response = loop.handle(TICKET)
 
-    assert response.diagnosis.root_cause == "Connection pool exhausted"
+    assert response.diagnosis.root_cause == "Corrupted update database"
     texts = [m.text for m in llm.calls[1] if m.text]
     assert loop.DIAGNOSIS_REQUEST in texts
 

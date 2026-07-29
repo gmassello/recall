@@ -2,7 +2,7 @@ import pytest
 
 from app.api import tickets as api_tickets
 
-TICKET = {"id": "t1", "title": "something", "service": "payments-api", "severity": "high"}
+TICKET = {"id": "t1", "title": "something", "service": "software-pc", "severity": "high"}
 
 
 class FakeSource:
