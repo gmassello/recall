@@ -232,17 +232,22 @@ and what it recalled), which feeds the live timeline in the frontend.
 {
   "ticket_id": "…",
   "diagnosis": {
-    "root_cause": "Connection pool exhaustion in payments-api",
-    "mitigation_steps": ["Raise max_connections to 200", "…"],
-    "confidence": 0.82
+    "root_cause": "The update database was corrupted, so every retry reapplied the same broken package.",
+    "mitigation_steps": ["Boot into Windows Recovery Environment or Safe Mode", "…"],
+    "confidence": 0.95
   },
-  "most_relevant_incident": { "id": "…", "title": "…", "score": 0.31 },
+  "most_relevant_incident": {
+    "id": "…", "title": "Reboot loop after an update: current procedure", "score": 0.1305
+  },
   "evidence": [
     { "tool": "search_memory",   "via": "mcp",
-      "args": { "symptom": "…", "k": 20 },
-      "returned": [ { "id": "…", "title": "…", "score": 0.31 } ] },
-    { "tool": "query_incidents", "via": "fallback",
-      "args": { "service": "payments-api" }, "returned": [] }
+      "args": { "symptom": "it boots, shows the logo, restarts, loops forever",
+                "service": "software-pc" },
+      "returned": [ { "id": "…", "title": "Reboot loop after an update: current procedure",
+                      "symptom": "…", "root_cause": "…", "resolution": "…",
+                      "service": "software-pc", "score": 0.1305 } ] },
+    { "tool": "query_incidents", "via": "mcp",
+      "args": { "service": "software-pc" }, "returned": [ { "id": "…", "title": "…" } ] }
   ]
 }
 ```
@@ -269,8 +274,9 @@ and what it recalled), which feeds the live timeline in the frontend.
 
 ```jsonc
 // 201
-{ "generated": [ { "id": "…", "title": "…", "symptom": "…",
-                   "service": "payments-api", "severity": "high",
+{ "generated": [ { "id": "…",
+                   "title": "[software-pc] Windows goes into a reboot loop after the last update",
+                   "symptom": "…", "service": "software-pc", "severity": "high",
                    "source": "generated" } ] }
 ```
 
@@ -511,7 +517,7 @@ Input format, `history.jsonl` (one line per incident):
 ```jsonc
 { "external_id": "INC-1042", "title": "…", "symptom": "…",
   "root_cause": "…", "resolution": "…",       // if missing → skipped
-  "service": "payments-api", "severity": "high",
+  "service": "software-pc", "severity": "high",
   "created_at": "2025-03-11T04:12:00Z", "resolved_at": "2025-03-11T05:40:00Z" }
 ```
 
