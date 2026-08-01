@@ -83,6 +83,7 @@ Resources:
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: RESPONSE_STREAM
+      PermissionsBoundary: !Sub 'arn:aws:iam::${AWS::AccountId}:policy/${AWS::StackName}-permissions-boundary'
       Policies:
         - Version: '2012-10-17'
           Statement:

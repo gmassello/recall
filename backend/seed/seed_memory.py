@@ -310,7 +310,12 @@ def seed_incidents() -> None:
 
 def seed_tickets() -> None:
     path = Path(__file__).parent / "tickets_seed.json"
-    for raw in json.loads(path.read_text()):
+    seeds = json.loads(path.read_text())
+    known = tickets.source.existing_external_ids([raw["external_id"] for raw in seeds])
+    for raw in seeds:
+        if raw["external_id"] in known:
+            log.info("%s already exists, skipped", raw["external_id"])
+            continue
         ticket = dict(raw)
         status = ticket.pop("status", "open")
         row = tickets.source.ingest(TicketCreate(**ticket))

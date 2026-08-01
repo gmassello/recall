@@ -126,7 +126,9 @@ export interface StreamCallbacks {
 }
 
 export function streamHandle(ticketId: string, callbacks: StreamCallbacks): () => void {
-  const source = new EventSource(`${BASE}/tickets/${ticketId}/handle/stream`)
+  const source = new EventSource(
+    `${BASE}/tickets/${ticketId}/handle/stream${API_KEY ? `?key=${encodeURIComponent(API_KEY)}` : ''}`,
+  )
   source.addEventListener('evidence', (event) => {
     callbacks.onEvidence(JSON.parse((event as MessageEvent).data))
   })

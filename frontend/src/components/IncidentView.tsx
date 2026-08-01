@@ -49,6 +49,8 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
   const [resolved, setResolved] = useState<ResolveResponse | null>(null)
 
   const [feedback, setFeedback] = useState<FeedbackResponse | null>(null)
+  const [voting, setVoting] = useState(false)
+  const streamStarted = useRef(false)
 
   useEffect(() => () => closeStream.current?.(), [])
 
@@ -60,13 +62,18 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
   }
 
   useEffect(() => {
+    let cancelled = false
     getDiagnosis(ticket.id)
       .then((saved) => {
+        if (cancelled || streamStarted.current) return
         setResult(saved)
         setEvidence(saved.evidence ?? [])
         prefill(saved)
       })
       .catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [ticket.id])
 
   const refreshTicket = () => {
@@ -74,6 +81,7 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
   }
 
   const run = () => {
+    streamStarted.current = true
     setHandling(true)
     setError('')
     setEvidence([])
@@ -119,10 +127,17 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
   }
 
   const vote = (helpful: boolean) => {
-    if (!result?.most_relevant_incident) return
+    if (!result?.most_relevant_incident || voting) return
     const incidentId = result.most_relevant_incident.id
+    setVoting(true)
     runAsync(
-      async () => setFeedback(await sendFeedback(ticket.id, { incident_id: incidentId, helpful })),
+      async () => {
+        try {
+          setFeedback(await sendFeedback(ticket.id, { incident_id: incidentId, helpful }))
+        } finally {
+          setVoting(false)
+        }
+      },
       { silent: true },
     )
   }
@@ -197,10 +212,10 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
                 <span className="muted">(score {result.most_relevant_incident.score.toFixed(3)})</span>
               </p>
               <div className="actions">
-                <button onClick={() => vote(true)} disabled={!!feedback}>
+                <button onClick={() => vote(true)} disabled={!!feedback || voting}>
                   👍 It helped
                 </button>
-                <button onClick={() => vote(false)} disabled={!!feedback}>
+                <button onClick={() => vote(false)} disabled={!!feedback || voting}>
                   👎 Not useful
                 </button>
               </div>

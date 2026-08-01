@@ -55,6 +55,7 @@ def test_seeding_tickets_applies_the_status_of_the_fixture(monkeypatch):
     double = SimpleNamespace(
         ingest=lambda ticket: {"id": ticket.external_id},
         set_status=lambda tid, status: states.append((tid, status)),
+        existing_external_ids=lambda external_ids: set(),
     )
     monkeypatch.setattr(seed_memory.tickets, "source", double)
 

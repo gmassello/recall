@@ -40,6 +40,8 @@ class TicketSource(Protocol):
 
     def ingest(self, ticket: TicketCreate) -> dict: ...
 
+    def existing_external_ids(self, external_ids: list[str]) -> set[str]: ...
+
     def generate(self, n: int = 1) -> list[dict]: ...
 
     def set_status(self, ticket_id: str, status: TicketStatus) -> None: ...
@@ -127,6 +129,13 @@ class MockTicketSource:
                 ticket.source,
             ),
         )
+
+    def existing_external_ids(self, external_ids: list[str]) -> set[str]:
+        rows = fetch(
+            "SELECT external_id FROM tickets WHERE external_id = ANY(%s)",
+            (external_ids,),
+        )
+        return {row["external_id"] for row in rows}
 
     def generate(self, n: int = 1) -> list[dict]:
         return [self.ingest(self.generator.generate()) for _ in range(n)]

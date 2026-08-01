@@ -32,7 +32,7 @@ def clear_memory() -> dict:
     return {"deleted": memory.clear_memory()}
 
 
-@router.post("/memory/{incident_id}/supersede", status_code=204)
+@router.post("/memory/{incident_id}/supersede", status_code=204, dependencies=protected)
 def supersede_memory(incident_id: str, body: SupersedeRequest) -> None:
     if not memory.supersede(incident_id, body.new_id):
         raise HTTPException(status_code=404, detail="Incident not found")

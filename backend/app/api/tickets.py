@@ -48,13 +48,13 @@ def create_ticket(ticket: TicketCreate) -> dict:
     return tickets.source.ingest(ticket)
 
 
-@router.post("/generate", status_code=201)
+@router.post("/generate", status_code=201, dependencies=protected)
 def generate_tickets(n: int = Query(1, ge=1, le=20)) -> dict:
     generated = [GeneratedTicket.from_row(row) for row in tickets.source.generate(n)]
     return {"generated": generated}
 
 
-@router.post("/seed", status_code=204)
+@router.post("/seed", status_code=204, dependencies=protected)
 def seed_demo() -> None:
     seed_incidents()
     seed_tickets()
@@ -92,20 +92,20 @@ def get_diagnosis(ticket_id: str) -> HandleResponse:
     return saved
 
 
-@router.post("/{ticket_id}/handle", response_model=HandleResponse)
+@router.post("/{ticket_id}/handle", response_model=HandleResponse, dependencies=protected)
 def handle_ticket(ticket_id: str) -> HandleResponse:
     ticket = get_ticket_or_404(ticket_id)
     tickets.source.set_status(ticket_id, "handling")
     try:
         response = handle(ticket)
+        diagnoses.save(response)
     except Exception:
         tickets.source.set_status(ticket_id, "open")
         raise
-    diagnoses.save(response)
     return response
 
 
-@router.get("/{ticket_id}/handle/stream")
+@router.get("/{ticket_id}/handle/stream", dependencies=protected)
 def handle_ticket_stream(ticket_id: str) -> EventSourceResponse:
     ticket = get_ticket_or_404(ticket_id)
     tickets.source.set_status(ticket_id, "handling")
@@ -116,9 +116,9 @@ def handle_ticket_stream(ticket_id: str) -> EventSourceResponse:
             for kind, payload in handle_events(ticket):
                 exclude = None
                 if kind == "result":
+                    diagnoses.save(payload)
                     complete = True
                     exclude = {"evidence"}
-                    diagnoses.save(payload)
                 yield {"event": kind, "data": payload.model_dump_json(exclude=exclude)}
         except Exception as exc:
             log.exception("The agent failed while streaming ticket %s", ticket_id)
