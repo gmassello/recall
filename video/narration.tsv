@@ -1,0 +1,68 @@
+beat	gap	caption	speak
+# ---------------------------------------------------------------------------
+# The narration script, split into caption-sized lines.
+#
+# One line here = one caption on screen = one TTS clip. Because each line is
+# rendered as its own audio file, the subtitle timings are exact by
+# construction: no forced alignment, no guessing.
+#
+# Columns (TAB separated):
+#   beat    - label from docs/video-script.md, only used in the timing report
+#   gap     - seconds of SILENCE before this line. Use it to let a moment
+#             breathe. A line with an empty caption is a pure pause.
+#   caption - what the viewer READS. Max ~10 words. Numbers as digits.
+#   speak   - what the voice SAYS. Leave empty to speak the caption verbatim.
+#             Only fill it in when digits or identifiers would be mangled.
+#
+# Lines starting with # are ignored. Keep the header row as-is.
+# ---------------------------------------------------------------------------
+
+0:00	0.8	On-call teams solve the same incident twice
+0:00	0.35	Last quarter's fix is buried in a closed ticket
+0:00	0.5	Recall is an agent whose memory is CockroachDB
+
+0:12	1.2	This is the memory: 25 resolved incidents	This is the memory. Twenty five resolved incidents.
+0:12	0.35	Each embedded as a 1,024-dimension vector	Each one embedded as a one thousand twenty four dimension vector.
+0:12	0.35	Vectors and tickets, same database
+0:12	0.6	Quality score, times cited, a validity window
+0:12	0.4	Memory that ages
+0:12	2.0
+
+0:32	1.2	This procedure expired, and was superseded
+0:32	0.4	Watch what the agent does with that
+
+0:42	1.0	A ticket comes in
+0:42	0.35	A PC stuck in a reboot loop after an update	A PC stuck in a reboot loop after a Windows update.
+
+0:55	1.0	The agent picks its own tools
+0:55	0.35	Live, over server-sent events straight from Lambda
+0:55	0.35	It searches memory, then queries the incident table
+0:55	0.5	Every step reports how it reached the database
+0:55	3.5
+0:55	0.0	via: mcp — the Cloud Managed MCP Server	via M C P. The CockroachDB Cloud Managed M C P Server.
+0:55	0.35	In the request path, not just in my editor
+
+1:12	1.2	Root cause, mitigation steps, high confidence
+1:12	2.5
+1:12	0.0	It leaned on the current procedure, not the stale one
+1:12	0.5	That filter runs in SQL
+1:12	0.35	Stale knowledge is never even a candidate
+
+1:30	1.2	A human confirms and resolves
+1:30	0.4	The postmortem is embedded and written back into memory
+1:30	3.0
+1:30	1.2	26 now. That is the loop	Twenty six now. That is the loop.
+
+1:50	1.2	Same class of problem again
+1:50	5.5
+1:50	0.0	The top hit is the postmortem we just wrote	The top hit is the postmortem we wrote sixty seconds ago.
+1:50	0.5	The system got better between two tickets
+
+2:15	1.2	And when there is no precedent, it says so
+2:15	4.5	Confidence 0.1 — instead of an invented root cause	Confidence zero point one. Instead of an invented root cause.
+
+2:32	1.2	CockroachDB does two jobs here
+2:32	0.4	Distributed vector indexing for the recall
+2:32	0.4	And the Managed MCP Server as a live read path	And the Managed M C P Server as a live read path.
+2:32	0.5	AWS Lambda with response streaming, behind CloudFront
+2:32	0.5	One database for the vectors and the transactions
