@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any, Literal, get_args
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -86,7 +87,7 @@ class IncidentUpdate(BaseModel):
 
 
 class SupersedeRequest(BaseModel):
-    new_id: str
+    new_id: UUID
 
 
 class Diagnosis(BaseModel):
@@ -118,7 +119,7 @@ class HandleResponse(BaseModel):
 class ResolveRequest(BaseModel):
     root_cause: str
     resolution: str
-    supersedes: str | None = None
+    supersedes: UUID | None = None
 
 
 class ResolveResponse(BaseModel):
@@ -128,7 +129,7 @@ class ResolveResponse(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
-    incident_id: str
+    incident_id: UUID
     helpful: bool
 
 

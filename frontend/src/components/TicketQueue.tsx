@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import {
   clearTickets,
   createTicket,
@@ -55,8 +55,13 @@ export default function TicketQueue({
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [expanded, setExpanded] = useState<string | null>(null)
   const { busy, error, run } = useAsync()
+  const seq = useRef(0)
 
-  const load = async () => setTickets(await listTickets(filters))
+  const load = async () => {
+    const mine = ++seq.current
+    const rows = await listTickets(filters)
+    if (mine === seq.current) setTickets(rows)
+  }
 
   const refresh = (opts?: { silent?: boolean }) => run(load, opts)
 
@@ -181,7 +186,17 @@ export default function TicketQueue({
           <tbody>
             {tickets.map((t) => (
               <Fragment key={t.id}>
-                <tr className="clickable" onClick={() => onSelect(t)}>
+                <tr
+                  className="clickable"
+                  tabIndex={0}
+                  onClick={() => onSelect(t)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onSelect(t)
+                    }
+                  }}
+                >
                   <td>{t.title}</td>
                   <td>{t.service ?? '—'}</td>
                   <td>{t.severity && <span className={`badge ${SEV_BADGE[t.severity] ?? ''}`}>{t.severity}</span>}</td>

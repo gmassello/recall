@@ -15,10 +15,9 @@ def write_postmortem(
         source="manual",
     )
 
-    if supersedes:
-        memory.supersede(supersedes, incident_id)
+    superseded = bool(supersedes) and memory.supersede(supersedes, incident_id)
 
     tickets.source.set_status(ticket["id"], "resolved")
     return ResolveResponse(
-        incident_id=incident_id, embedded=True, superseded=supersedes
+        incident_id=incident_id, embedded=True, superseded=supersedes if superseded else None
     )

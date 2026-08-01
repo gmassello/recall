@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import types
 
 import pytest
@@ -107,7 +108,7 @@ def test_the_sql_tool_is_discovered_only_once(without_cache):
     assert session.calls == 1
 
 
-def test_the_probe_does_not_leak_the_error_detail(monkeypatch):
+def test_the_probe_does_not_leak_the_error_detail(monkeypatch, caplog):
     secret = "https://admin:hunter2@mcp.internal:8080"
     monkeypatch.setattr(cockroach_client.settings, "cockroach_mcp_url", "https://x")
     monkeypatch.setattr(cockroach_client.settings, "cockroach_mcp_api_key", "k")
@@ -115,4 +116,9 @@ def test_the_probe_does_not_leak_the_error_detail(monkeypatch):
         cockroach_client, "_run", lambda sql: (_ for _ in ()).throw(RuntimeError(secret))
     )
 
-    assert probe() == "fallback"
+    with caplog.at_level(logging.WARNING, logger="app.mcp.cockroach_client"):
+        result = probe()
+
+    assert result == "fallback"
+    assert secret not in result
+    assert secret in caplog.text

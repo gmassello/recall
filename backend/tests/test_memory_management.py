@@ -127,3 +127,42 @@ def test_seeding_applies_the_stats_and_the_chain_outside_store_incident(monkeypa
 def test_clearing_everything_returns_the_count(captured):
     assert memory.clear_memory() == 1
     assert "DELETE FROM incidents" in captured[0][0]
+
+
+def test_positive_feedback_adds_the_up_delta_and_counts_the_vote(captured):
+    from app.config import settings
+
+    memory.apply_feedback("abc", helpful=True)
+
+    sql, params = captured[0]
+    assert "GREATEST(-1.0, LEAST(1.0" in sql
+    assert params[:2] == [settings.feedback_up, 1]
+
+
+def test_negative_feedback_subtracts_the_down_delta_without_counting(captured):
+    from app.config import settings
+
+    memory.apply_feedback("abc", helpful=False)
+
+    _, params = captured[0]
+    assert params[:2] == [-settings.feedback_down, 0]
+
+
+def test_query_incidents_stacks_filters_over_the_validity_filter(monkeypatch):
+    reads: list[tuple[str, list]] = []
+    monkeypatch.setattr(
+        memory, "_read", lambda sql, params: reads.append((sql, params)) or ([], "fallback")
+    )
+
+    memory.query_incidents(service="software-pc", severity="high", limit=999)
+
+    sql, params = reads[0]
+    assert "service = %s" in sql
+    assert "severity = %s" in sql
+    assert memory.CURRENT_SQL_FILTER in sql
+    assert params == ["software-pc", "high", 50]
+
+
+def test_superseding_an_incident_with_itself_is_rejected(captured):
+    assert memory.supersede("abc", "abc") is False
+    assert captured == []

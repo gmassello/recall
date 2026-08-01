@@ -43,6 +43,12 @@ fi
 
 : "${DATABASE_URL:?DATABASE_URL is missing: set it in backend/.env or in the environment}"
 
+if [ "${LLM_PROVIDER:-}" = "anthropic" ] && ! grep -qi '^anthropic' "$BACKEND/requirements-lambda.txt"; then
+    echo "LLM_PROVIDER=anthropic but the anthropic SDK is not in requirements-lambda.txt:"
+    echo "the Lambda would fail on import. Add it there (see the recall-switch-llm-provider skill)."
+    exit 1
+fi
+
 export AWS_DEFAULT_REGION=${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region || echo us-east-1)}}
 REGION=$AWS_DEFAULT_REGION
 

@@ -46,6 +46,8 @@ class TicketSource(Protocol):
 
     def set_status(self, ticket_id: str, status: TicketStatus) -> None: ...
 
+    def claim(self, ticket_id: str) -> bool: ...
+
     def update(self, ticket_id: str, changes: dict) -> dict | None: ...
 
     def delete(self, ticket_id: str) -> bool: ...
@@ -144,6 +146,14 @@ class MockTicketSource:
         execute(
             "UPDATE tickets SET status = %s WHERE id = %s::UUID", (status, ticket_id)
         )
+
+    def claim(self, ticket_id: str) -> bool:
+        row = fetch_one(
+            "UPDATE tickets SET status = 'handling' "
+            "WHERE id = %s::UUID AND status != 'resolved' RETURNING id::STRING AS id",
+            (ticket_id,),
+        )
+        return row is not None
 
     def update(self, ticket_id: str, changes: dict) -> dict | None:
         if not changes:

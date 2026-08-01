@@ -6,8 +6,11 @@ from app import tickets
 from app.config import settings
 
 TICKET_NOT_FOUND = "Ticket not found"
+TICKET_ALREADY_RESOLVED = "This ticket is already resolved"
+TICKET_NOT_CLAIMABLE = "A resolved ticket cannot be diagnosed again"
 DIAGNOSIS_NOT_FOUND = "This ticket has no saved diagnosis"
 API_KEY_REQUIRED = "This endpoint requires a valid X-API-Key header"
+AGENT_STREAM_ERROR = "The agent failed while handling this ticket"
 
 
 def require_api_key(x_api_key: str = Header(""), key: str = Query("")) -> None:

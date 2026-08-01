@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { getDiagnosis, getTicket, resolveIncident, sendFeedback, streamHandle } from '../api'
+import { ApiError, getDiagnosis, getTicket, resolveIncident, sendFeedback, streamHandle } from '../api'
 import { useAsync } from '../hooks'
 import type {
   EvidenceStep,
@@ -70,7 +70,10 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
         setEvidence(saved.evidence ?? [])
         prefill(saved)
       })
-      .catch(() => {})
+      .catch((e) => {
+        if (cancelled || (e instanceof ApiError && e.status === 404)) return
+        setError(`Could not load the saved diagnosis: ${(e as Error).message}`)
+      })
     return () => {
       cancelled = true
     }
@@ -146,7 +149,7 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
     <section>
       <div className="section-header">
         <button onClick={onBack}>← Back to the queue</button>
-        <button className="primary" onClick={run} disabled={handling}>
+        <button className="primary" onClick={run} disabled={handling || ticket.status === 'resolved'}>
           {handling ? 'Diagnosing...' : result ? 'Diagnose again' : 'Diagnose'}
         </button>
       </div>

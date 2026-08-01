@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app import memory
@@ -14,16 +16,16 @@ def inspect_memory(service: str | None = None) -> list[dict]:
 
 
 @router.patch("/memory/{incident_id}", response_model=Incident, dependencies=protected)
-def edit_memory(incident_id: str, body: IncidentUpdate) -> dict:
-    row = memory.update_incident(incident_id, body.model_dump(exclude_unset=True))
+def edit_memory(incident_id: UUID, body: IncidentUpdate) -> dict:
+    row = memory.update_incident(str(incident_id), body.model_dump(exclude_unset=True))
     if row is None:
         raise HTTPException(status_code=404, detail="Incident not found")
     return row
 
 
 @router.delete("/memory/{incident_id}", status_code=204, dependencies=protected)
-def delete_memory(incident_id: str) -> None:
-    if not memory.delete_incident(incident_id):
+def delete_memory(incident_id: UUID) -> None:
+    if not memory.delete_incident(str(incident_id)):
         raise HTTPException(status_code=404, detail="Incident not found")
 
 
@@ -33,6 +35,6 @@ def clear_memory() -> dict:
 
 
 @router.post("/memory/{incident_id}/supersede", status_code=204, dependencies=protected)
-def supersede_memory(incident_id: str, body: SupersedeRequest) -> None:
-    if not memory.supersede(incident_id, body.new_id):
+def supersede_memory(incident_id: UUID, body: SupersedeRequest) -> None:
+    if not memory.supersede(str(incident_id), str(body.new_id)):
         raise HTTPException(status_code=404, detail="Incident not found")

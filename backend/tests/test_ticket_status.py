@@ -7,7 +7,8 @@ from app.api import tickets as api_tickets
 from app.config import settings
 from app.main import app
 
-TICKET = {"id": "t1", "title": "something", "service": "software-pc", "severity": "high"}
+TID = "0f7a26a2-93a3-4bfb-9b09-e6e9175bf0a4"
+TICKET = {"id": TID, "title": "something", "service": "software-pc", "severity": "high"}
 
 
 class FakePayload:
@@ -33,12 +34,18 @@ def sse_events(text: str) -> list[dict]:
 class FakeSource:
     def __init__(self) -> None:
         self.states: list[str] = []
+        self.claimable = True
 
     def get(self, ticket_id: str) -> dict:
         return TICKET
 
     def set_status(self, ticket_id: str, status: str) -> None:
         self.states.append(status)
+
+    def claim(self, ticket_id: str) -> bool:
+        if self.claimable:
+            self.states.append("handling")
+        return self.claimable
 
 
 @pytest.fixture
@@ -62,7 +69,7 @@ def test_the_ticket_goes_back_to_open_if_the_agent_fails(source, saved, monkeypa
     monkeypatch.setattr(api_tickets, "handle", raises)
 
     with pytest.raises(RuntimeError):
-        api_tickets.handle_ticket("t1")
+        api_tickets.handle_ticket(TID)
 
     assert source.states == ["handling", "open"]
     assert saved == []
@@ -71,9 +78,23 @@ def test_the_ticket_goes_back_to_open_if_the_agent_fails(source, saved, monkeypa
 def test_the_ticket_stays_in_handling_if_the_agent_responds(source, saved, monkeypatch):
     monkeypatch.setattr(api_tickets, "handle", lambda ticket: "response")
 
-    assert api_tickets.handle_ticket("t1") == "response"
+    assert api_tickets.handle_ticket(TID) == "response"
     assert source.states == ["handling"]
     assert saved == ["response"]
+
+
+def test_a_resolved_ticket_cannot_be_diagnosed_again(source, saved, monkeypatch):
+    from fastapi import HTTPException
+
+    source.claimable = False
+    monkeypatch.setattr(api_tickets, "handle", lambda ticket: "response")
+
+    with pytest.raises(HTTPException) as raised:
+        api_tickets.handle_ticket(TID)
+
+    assert raised.value.status_code == 409
+    assert source.states == []
+    assert saved == []
 
 
 def test_the_ticket_goes_back_to_open_if_saving_the_diagnosis_fails(source, monkeypatch):
@@ -84,7 +105,7 @@ def test_the_ticket_goes_back_to_open_if_saving_the_diagnosis_fails(source, monk
     monkeypatch.setattr(api_tickets.diagnoses, "save", failing_save)
 
     with pytest.raises(RuntimeError):
-        api_tickets.handle_ticket("t1")
+        api_tickets.handle_ticket(TID)
 
     assert source.states == ["handling", "open"]
 
@@ -102,7 +123,7 @@ def test_the_stream_rolls_the_ticket_back_when_the_agent_fails(source, saved, mo
 
     monkeypatch.setattr(api_tickets, "handle_events", failing_events)
 
-    events = sse_events(client.get("/tickets/t1/handle/stream").text)
+    events = sse_events(client.get(f"/tickets/{TID}/handle/stream").text)
 
     assert [e["event"] for e in events] == ["agent_error"]
     assert source.states == ["handling", "open"]
@@ -118,7 +139,7 @@ def test_the_stream_saves_the_result_and_keeps_handling(source, saved, monkeypat
 
     monkeypatch.setattr(api_tickets, "handle_events", fake_events)
 
-    events = sse_events(client.get("/tickets/t1/handle/stream").text)
+    events = sse_events(client.get(f"/tickets/{TID}/handle/stream").text)
 
     assert [e["event"] for e in events] == ["evidence", "result"]
     assert "evidence" not in json.loads(events[-1]["data"])
@@ -136,7 +157,7 @@ def test_the_stream_rolls_back_when_saving_the_diagnosis_fails(source, monkeypat
     monkeypatch.setattr(api_tickets, "handle_events", fake_events)
     monkeypatch.setattr(api_tickets.diagnoses, "save", failing_save)
 
-    events = sse_events(client.get("/tickets/t1/handle/stream").text)
+    events = sse_events(client.get(f"/tickets/{TID}/handle/stream").text)
 
     assert [e["event"] for e in events] == ["agent_error"]
     assert source.states == ["handling", "open"]

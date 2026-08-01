@@ -200,6 +200,8 @@ def apply_feedback(incident_id: str, helpful: bool) -> dict | None:
 
 
 def supersede(old_id: str, new_id: str) -> bool:
+    if old_id == new_id:
+        return False
     row = fetch_one(
         """
         UPDATE incidents

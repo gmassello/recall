@@ -43,6 +43,7 @@ def test_the_protocol_declares_everything_the_api_uses():
         "ingest",
         "generate",
         "set_status",
+        "claim",
         "update",
         "delete",
         "clear_open",

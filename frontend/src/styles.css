@@ -158,6 +158,11 @@ tr.clickable:hover td {
   background: rgba(79, 140, 255, 0.08);
 }
 
+tr.clickable:focus-visible {
+  outline: 2px solid var(--accent, #4f8cff);
+  outline-offset: -2px;
+}
+
 .badge {
   display: inline-block;
   padding: 0.1rem 0.5rem;

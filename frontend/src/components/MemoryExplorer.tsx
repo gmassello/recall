@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { clearMemory, deleteIncident, listMemory, supersedeIncident, updateIncident } from '../api'
 import { useAsync } from '../hooks'
 import { SEVERITIES } from '../types'
@@ -44,8 +44,13 @@ export default function MemoryExplorer() {
   const [service, setService] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const { busy, error, run } = useAsync()
+  const seq = useRef(0)
 
-  const reload = async () => setIncidents(await listMemory(service.trim() || undefined))
+  const reload = async () => {
+    const mine = ++seq.current
+    const rows = await listMemory(service.trim() || undefined)
+    if (mine === seq.current) setIncidents(rows)
+  }
 
   useEffect(() => {
     const id = setTimeout(() => run(reload), service ? DEBOUNCE_MS : 0)

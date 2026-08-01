@@ -16,6 +16,15 @@ import type {
 const BASE = import.meta.env.VITE_API_BASE ?? '/api'
 const API_KEY = import.meta.env.VITE_DEMO_API_KEY ?? ''
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = API_KEY ? { ...init?.headers, 'X-API-Key': API_KEY } : init?.headers
   const res = await fetch(`${BASE}${path}`, { ...init, headers })
@@ -29,7 +38,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* response without JSON */
     }
-    throw new Error(detail)
+    throw new ApiError(detail, res.status)
   }
   if (res.status === 204) {
     return undefined as T
