@@ -12,10 +12,11 @@ def rendered_length(sql: str, params: list) -> int:
     return len(sql) + sum(len(str(p)) for p in params)
 
 
-def test_without_service_the_query_has_no_where():
+def test_without_service_the_query_still_filters_validity():
     sql, params = _recall_sql(EMBEDDING, None)
 
-    assert "WHERE" not in sql
+    assert CURRENT_SQL_FILTER in sql
+    assert "service = %s" not in sql
     assert params[-1] == settings.recall_candidates
 
 

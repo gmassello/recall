@@ -65,10 +65,11 @@ export default function TicketQueue({
 
   const refresh = (opts?: { silent?: boolean }) => run(load, opts)
 
-  const filtered = Object.values(filters).some(Boolean)
+  const filtered = Boolean(filters.search || filters.service || filters.severity || filters.status)
 
   const picker = (field: 'service' | 'severity' | 'status', empty: string, options: readonly string[]) => (
     <select
+      aria-label={empty}
       value={filters[field]}
       onChange={(e) => onFilters({ ...filters, [field]: e.target.value })}
     >
@@ -201,7 +202,7 @@ export default function TicketQueue({
                   <td>{t.service ?? '—'}</td>
                   <td>{t.severity && <span className={`badge ${SEV_BADGE[t.severity] ?? ''}`}>{t.severity}</span>}</td>
                   <td>
-                    <span className={`badge ${STATUS_BADGE[t.status]}`}>{t.status}</span>
+                    <span className={`badge ${STATUS_BADGE[t.status] ?? ''}`}>{t.status}</span>
                   </td>
                   <td>{new Date(t.created_at).toLocaleString()}</td>
                   <td onClick={(e) => e.stopPropagation()}>

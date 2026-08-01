@@ -78,8 +78,8 @@ class Incident(BaseModel):
 
 
 class IncidentUpdate(BaseModel):
-    title: str | None = None
-    symptom: str | None = None
+    title: str | None = Field(None, min_length=1)
+    symptom: str | None = Field(None, min_length=1)
     root_cause: str | None = None
     resolution: str | None = None
     service: str | None = None

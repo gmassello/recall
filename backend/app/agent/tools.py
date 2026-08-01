@@ -35,7 +35,7 @@ QUERY_INCIDENTS = ToolSpec(
         "properties": {
             "service": {"type": "string"},
             "severity": {"type": "string", "enum": SEVERITIES},
-            "limit": {"type": "integer", "default": 10},
+            "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 50},
         },
     },
 )

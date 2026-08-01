@@ -3,18 +3,18 @@ import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from typing import get_args
+
 from app import memory, tickets
-from app.models import TicketCreate
+from app.models import TicketCreate, TicketStatus
 
 log = logging.getLogger(__name__)
-
-NOW = datetime.now(timezone.utc)
 
 STATS = ("quality_score", "times_cited", "times_helpful")
 
 
 def days_ago(n: int) -> datetime:
-    return NOW - timedelta(days=n)
+    return datetime.now(timezone.utc) - timedelta(days=n)
 
 
 INCIDENTS = [
@@ -26,7 +26,7 @@ INCIDENTS = [
         "resolution": "The power jack was resoldered and the generic charger replaced with one of the correct voltage.",
         "service": "hardware-pc",
         "severity": "critical",
-        "created_at": days_ago(38),
+        "age_days": 38,
     },
     {
         "external_id": "INC-002",
@@ -36,7 +36,7 @@ INCIDENTS = [
         "resolution": "Heatsink cleaning, thermal paste replacement and a 40 minute stress test that never went above 78 degrees.",
         "service": "hardware-pc",
         "severity": "high",
-        "created_at": days_ago(95),
+        "age_days": 95,
     },
     {
         "external_id": "INC-003",
@@ -46,8 +46,8 @@ INCIDENTS = [
         "resolution": "An 8GB module was added.",
         "service": "hardware-pc",
         "severity": "medium",
-        "created_at": days_ago(400),
-        "valid_until": days_ago(200),
+        "age_days": 400,
+        "valid_until_days_ago": 200,
     },
     {
         "external_id": "INC-004",
@@ -57,7 +57,7 @@ INCIDENTS = [
         "resolution": "The update was uninstalled from the recovery environment, the boot was repaired and the full update applied again.",
         "service": "software-pc",
         "severity": "high",
-        "created_at": days_ago(15),
+        "age_days": 15,
     },
     {
         "external_id": "INC-005",
@@ -67,7 +67,7 @@ INCIDENTS = [
         "resolution": "The system was cloned to an SSD and the user data recovered before the disk failed completely.",
         "service": "software-pc",
         "severity": "high",
-        "created_at": days_ago(60),
+        "age_days": 60,
     },
     {
         "external_id": "INC-006",
@@ -77,7 +77,7 @@ INCIDENTS = [
         "resolution": "The digitizer flex was reseated and the adhesive frame replaced so it would not move again.",
         "service": "hardware-phone",
         "severity": "high",
-        "created_at": days_ago(8),
+        "age_days": 8,
     },
     {
         "external_id": "INC-007",
@@ -87,7 +87,7 @@ INCIDENTS = [
         "resolution": "The input fuse was replaced and an original charger fitted; the machine has been stable since.",
         "service": "hardware-pc",
         "severity": "critical",
-        "created_at": days_ago(210),
+        "age_days": 210,
         "quality_score": 0.8,
         "times_cited": 9,
         "times_helpful": 7,
@@ -100,7 +100,7 @@ INCIDENTS = [
         "resolution": "The ribbon was reconnected. The customer came back a week later with the same fault.",
         "service": "hardware-pc",
         "severity": "critical",
-        "created_at": days_ago(12),
+        "age_days": 12,
         "quality_score": -0.6,
         "times_cited": 4,
     },
@@ -112,7 +112,7 @@ INCIDENTS = [
         "resolution": "Full internal cleaning and two new case fans.",
         "service": "hardware-pc",
         "severity": "high",
-        "created_at": days_ago(400),
+        "age_days": 400,
         "quality_score": 0.3,
         "times_cited": 5,
         "times_helpful": 3,
@@ -125,7 +125,7 @@ INCIDENTS = [
         "resolution": "New thermal pads and paste; the GPU now peaks at 71 degrees under load.",
         "service": "hardware-pc",
         "severity": "high",
-        "created_at": days_ago(6),
+        "age_days": 6,
     },
     {
         "external_id": "INC-011",
@@ -135,7 +135,7 @@ INCIDENTS = [
         "resolution": "The battery was replaced and the old one taken for safe disposal.",
         "service": "hardware-pc",
         "severity": "high",
-        "created_at": days_ago(45),
+        "age_days": 45,
     },
     {
         "external_id": "INC-012",
@@ -145,7 +145,7 @@ INCIDENTS = [
         "resolution": "The faulty module was removed and later replaced with a matched pair.",
         "service": "hardware-pc",
         "severity": "high",
-        "created_at": days_ago(120),
+        "age_days": 120,
     },
     {
         "external_id": "INC-013",
@@ -155,7 +155,7 @@ INCIDENTS = [
         "resolution": "The GPU was replaced and a surge protector added to the setup.",
         "service": "hardware-pc",
         "severity": "critical",
-        "created_at": days_ago(75),
+        "age_days": 75,
     },
     {
         "external_id": "INC-015",
@@ -165,7 +165,7 @@ INCIDENTS = [
         "resolution": "Reset the update components before reapplying: uninstalling and reapplying the package alone reinstalls the same broken copy, which is why the old procedure kept coming back.",
         "service": "software-pc",
         "severity": "high",
-        "created_at": days_ago(20),
+        "age_days": 20,
         "supersedes": "INC-004",
         "quality_score": 0.5,
         "times_cited": 6,
@@ -179,7 +179,7 @@ INCIDENTS = [
         "resolution": "Startup entries were trimmed to three. The customer reported no real improvement afterwards.",
         "service": "software-pc",
         "severity": "medium",
-        "created_at": days_ago(30),
+        "age_days": 30,
         "quality_score": -0.4,
         "times_cited": 3,
     },
@@ -191,7 +191,7 @@ INCIDENTS = [
         "resolution": "Clean driver uninstall and reinstall of the current version from the vendor.",
         "service": "software-pc",
         "severity": "high",
-        "created_at": days_ago(52),
+        "age_days": 52,
     },
     {
         "external_id": "INC-018",
@@ -201,8 +201,8 @@ INCIDENTS = [
         "resolution": "Reactivated by phone with the support agent reading out the installation id.",
         "service": "software-pc",
         "severity": "low",
-        "created_at": days_ago(500),
-        "valid_until": days_ago(120),
+        "age_days": 500,
+        "valid_until_days_ago": 120,
     },
     {
         "external_id": "INC-019",
@@ -212,7 +212,7 @@ INCIDENTS = [
         "resolution": "Extensions and scheduled task removed, profile reset and a full antimalware scan.",
         "service": "software-pc",
         "severity": "medium",
-        "created_at": days_ago(18),
+        "age_days": 18,
     },
     {
         "external_id": "INC-020",
@@ -222,7 +222,7 @@ INCIDENTS = [
         "resolution": "The original profile was restored from the registry and the temporary one deleted.",
         "service": "software-pc",
         "severity": "critical",
-        "created_at": days_ago(88),
+        "age_days": 88,
     },
     {
         "external_id": "INC-021",
@@ -232,7 +232,7 @@ INCIDENTS = [
         "resolution": "The screen assembly was replaced; reseating the flex had already been ruled out.",
         "service": "hardware-phone",
         "severity": "high",
-        "created_at": days_ago(25),
+        "age_days": 25,
         "quality_score": 0.6,
         "times_cited": 8,
         "times_helpful": 5,
@@ -245,7 +245,7 @@ INCIDENTS = [
         "resolution": "Replaced the adapter with a certified one; the ghost touches stopped immediately.",
         "service": "hardware-phone",
         "severity": "medium",
-        "created_at": days_ago(40),
+        "age_days": 40,
     },
     {
         "external_id": "INC-023",
@@ -255,7 +255,7 @@ INCIDENTS = [
         "resolution": "Battery replaced and the adhesive frame renewed.",
         "service": "hardware-phone",
         "severity": "critical",
-        "created_at": days_ago(14),
+        "age_days": 14,
     },
     {
         "external_id": "INC-024",
@@ -265,7 +265,7 @@ INCIDENTS = [
         "resolution": "The rear camera module was replaced.",
         "service": "hardware-phone",
         "severity": "medium",
-        "created_at": days_ago(65),
+        "age_days": 65,
     },
     {
         "external_id": "INC-025",
@@ -275,7 +275,7 @@ INCIDENTS = [
         "resolution": "Ultrasonic cleaning of the board and replacement of the charging controller; the data was recovered.",
         "service": "hardware-phone",
         "severity": "critical",
-        "created_at": days_ago(33),
+        "age_days": 33,
     },
     {
         "external_id": "INC-026",
@@ -285,9 +285,19 @@ INCIDENTS = [
         "resolution": "The mesh was cleaned; no parts were needed.",
         "service": "hardware-phone",
         "severity": "medium",
-        "created_at": days_ago(150),
+        "age_days": 150,
     },
 ]
+
+
+def _repair_chain(incident: dict, known: dict[str, str]) -> None:
+    supersedes = incident.get("supersedes")
+    if supersedes not in known or incident["external_id"] not in known:
+        return
+    old = memory.get_incident(known[supersedes])
+    if old and old["superseded_by"] is None:
+        memory.supersede(known[supersedes], known[incident["external_id"]])
+        log.info("Repaired the chain %s -> %s", supersedes, incident["external_id"])
 
 
 def seed_incidents() -> None:
@@ -295,9 +305,14 @@ def seed_incidents() -> None:
     for incident in INCIDENTS:
         external_id = incident["external_id"]
         if external_id in known:
+            _repair_chain(incident, known)
             log.info("%s already exists, skipped", external_id)
             continue
         data = dict(incident)
+        if "age_days" in data:
+            data["created_at"] = days_ago(data.pop("age_days"))
+        if "valid_until_days_ago" in data:
+            data["valid_until"] = days_ago(data.pop("valid_until_days_ago"))
         stats = {field: data.pop(field) for field in STATS if field in data}
         supersedes = data.pop("supersedes", None)
         known[external_id] = memory.store_incident(source="seed", **data)
@@ -318,6 +333,8 @@ def seed_tickets() -> None:
             continue
         ticket = dict(raw)
         status = ticket.pop("status", "open")
+        if status not in get_args(TicketStatus):
+            raise ValueError(f"{raw['external_id']}: invalid ticket status {status!r}")
         row = tickets.source.ingest(TicketCreate(**ticket))
         tickets.source.set_status(row["id"], status)
         log.info("Ticket: %s", raw["external_id"])

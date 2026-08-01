@@ -25,6 +25,11 @@ CURRENT_SQL_FILTER = (
     "(valid_until IS NULL OR valid_until > now()) AND superseded_by IS NULL"
 )
 
+UPDATABLE_COLUMNS = {
+    "title", "symptom", "root_cause", "resolution", "service", "severity",
+    "quality_score", "times_cited", "times_helpful", "valid_until",
+}
+
 
 def age_penalty(created_at: datetime, now: datetime | None = None) -> float:
     now = now or datetime.now(timezone.utc)
@@ -43,7 +48,7 @@ def rank_score(distance: float, quality_score: float, created_at: datetime) -> f
 def _recall_sql(embedding: list[float], service: str | None) -> tuple[str, list]:
     vector = to_vector_literal(embedding)
     distance = f"embedding {DISTANCE_OP} %s{VECTOR_CAST}"
-    where = ""
+    where = f"WHERE {CURRENT_SQL_FILTER}"
     params: list = [vector]
     if service:
         where = f"WHERE service = %s AND {CURRENT_SQL_FILTER}"
@@ -124,7 +129,7 @@ def query_incidents(
     if severity:
         conditions.append("severity = %s")
         params.append(severity)
-    params.append(min(limit, 50))
+    params.append(max(1, min(limit, 50)))
     sql = f"""
         SELECT {RECALL_COLUMNS}
         FROM incidents
@@ -240,6 +245,10 @@ def get_incident(incident_id: str) -> dict | None:
 def update_incident(incident_id: str, changes: dict) -> dict | None:
     if not changes:
         return get_incident(incident_id)
+
+    unknown = set(changes) - UPDATABLE_COLUMNS
+    if unknown:
+        raise ValueError(f"Unknown incident columns: {', '.join(sorted(unknown))}")
 
     sets = []
     params: list = []

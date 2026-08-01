@@ -192,7 +192,7 @@ CREATE TABLE diagnoses (
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET  | `/health` | Health check; includes the state of the MCP (`probe()`) |
+| GET  | `/health` | Health check. `?probe=1` adds the state of the MCP (`probe()`, a real round-trip) |
 | GET  | `/tickets` | Queue. Filters: `?service=`, `?severity=`, `?status=`, `?search=` (free-text match on the title; the mock source implements it as `ILIKE`), `?order=asc\|desc`. Without `status` it keeps the historical behaviour and hides resolved tickets |
 | POST | `/tickets` | Ingestion (manual mock or alert webhook) |
 | POST | `/tickets/generate?n=1` | Generates `n` synthetic tickets and queues them (§9) |
@@ -360,9 +360,9 @@ npm run dev                   # http://localhost:5173 (proxies /api → :8000)
 | Variable | Required | Default | What it is |
 |----------|----------|---------|------------|
 | `DATABASE_URL` | yes | — | CockroachDB connection string (writes + fallback) |
-| `COCKROACH_MCP_API_KEY` | yes | — | Service account API key for the Managed MCP Server |
-| `COCKROACH_MCP_URL` | yes | — | MCP Server endpoint (`https://cockroachlabs.cloud/mcp`) |
-| `COCKROACH_MCP_CLUSTER_ID` | yes | — | Cluster ID, sent in the `mcp-cluster-id` header |
+| `COCKROACH_MCP_API_KEY` | no | — | Service account API key for the Managed MCP Server. Empty disables the MCP read path (psycopg only) |
+| `COCKROACH_MCP_URL` | no | — | MCP Server endpoint (`https://cockroachlabs.cloud/mcp`) |
+| `COCKROACH_MCP_CLUSTER_ID` | no | — | Cluster ID, sent in the `mcp-cluster-id` header |
 | `LLM_PROVIDER` | no | `bedrock` | `bedrock` \| `anthropic` \| `gemini` |
 | `EMBEDDING_PROVIDER` | no | `bedrock` | `bedrock` \| `gemini`. Must produce 1024 dims (`VECTOR(1024)`) |
 | `AWS_REGION` | if `bedrock` | `us-east-1` | Region with Bedrock access enabled |
@@ -370,11 +370,13 @@ npm run dev                   # http://localhost:5173 (proxies /api → :8000)
 | `BEDROCK_MODEL_ID` | no | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | Model via the Converse API. **Inference profile, not the bare ID** (see below) |
 | `BEDROCK_EMBEDDING_MODEL_ID` | no | `amazon.titan-embed-text-v2:0` | Titan v2, 1024 dims. Bare ID: embedding models do not use inference profiles |
 | `ANTHROPIC_API_KEY` | if `anthropic` | — | Only for the provider swap |
+| `ANTHROPIC_MODEL` | no | `claude-sonnet-4-5-20250929` | Model for the `anthropic` provider |
 | `GEMINI_API_KEY` | if `gemini` | — | **Free** alternative to Bedrock (free tier): one key does LLM and embeddings |
 | `GEMINI_MODEL` | no | `gemini-flash-latest` | Chat model with function calling |
 | `GEMINI_EMBEDDING_MODEL` | no | `gemini-embedding-001` | `output_dimensionality=1024` → no table migration |
 | `DEMO_API_KEY` | no | — | Shared key demanded on the destructive endpoints (`DELETE`, `PATCH`) as `X-API-Key`. Empty leaves them open |
 | `MOCK_SEED` | no | — | Seed of the ticket generator → reproducible demo (§9) |
+| `CORS_ORIGINS` | no | `http://localhost:5173` | Comma-separated allowed origins. In the deploy it is computed from the CloudFront domain |
 
 AWS credentials come from the standard boto3 chain (profile, env vars or role).
 

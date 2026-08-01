@@ -80,28 +80,42 @@ if [ "$STATUS" = ROLLBACK_COMPLETE ] || [ "$STATUS" = REVIEW_IN_PROGRESS ]; then
     aws cloudformation wait stack-delete-complete --stack-name "$STACK"
 fi
 aws s3api head-bucket --bucket "$STAGING" 2>/dev/null || aws s3 mb "s3://$STAGING" --region "$REGION"
+aws s3api put-bucket-lifecycle-configuration --bucket "$STAGING" --lifecycle-configuration '{
+    "Rules": [{"ID": "expire-old-packages", "Status": "Enabled",
+               "Filter": {}, "Expiration": {"Days": 30}}]}'
 aws cloudformation package \
     --template-file "$BACKEND/template.yaml" \
     --s3-bucket "$STAGING" \
     --output-template-file "$BACKEND/.packaged.yaml" >/dev/null
+PARAMS_FILE="$BUILD/.parameters.json"
+python3 - "$PARAMS_FILE" <<'PYEOF'
+import json, os, sys
+
+env = os.environ.get
+params = {
+    "DatabaseUrl": os.environ["DATABASE_URL"],
+    "CockroachMcpUrl": env("COCKROACH_MCP_URL", ""),
+    "CockroachMcpApiKey": env("COCKROACH_MCP_API_KEY", ""),
+    "CockroachMcpClusterId": env("COCKROACH_MCP_CLUSTER_ID", ""),
+    "BedrockModelId": env("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+    "BedrockEmbeddingModelId": env("BEDROCK_EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0"),
+    "LlmProvider": env("LLM_PROVIDER", "gemini"),
+    "EmbeddingProvider": env("EMBEDDING_PROVIDER", "gemini"),
+    "GeminiApiKey": env("GEMINI_API_KEY", ""),
+    "GeminiModel": env("GEMINI_MODEL", "gemini-flash-latest"),
+    "GeminiEmbeddingModel": env("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001"),
+    "DemoApiKey": env("DEMO_API_KEY", ""),
+}
+with open(sys.argv[1], "w") as fh:
+    json.dump({"Parameters": params}, fh)
+PYEOF
 aws cloudformation deploy \
     --template-file "$BACKEND/.packaged.yaml" \
     --stack-name "$STACK" \
     --capabilities CAPABILITY_IAM \
     --no-fail-on-empty-changeset \
-    --parameter-overrides \
-        "DatabaseUrl=$DATABASE_URL" \
-        "CockroachMcpUrl=${COCKROACH_MCP_URL:-}" \
-        "CockroachMcpApiKey=${COCKROACH_MCP_API_KEY:-}" \
-        "CockroachMcpClusterId=${COCKROACH_MCP_CLUSTER_ID:-}" \
-        "BedrockModelId=${BEDROCK_MODEL_ID:-us.anthropic.claude-sonnet-4-5-20250929-v1:0}" \
-        "BedrockEmbeddingModelId=${BEDROCK_EMBEDDING_MODEL_ID:-amazon.titan-embed-text-v2:0}" \
-        "LlmProvider=${LLM_PROVIDER:-gemini}" \
-        "EmbeddingProvider=${EMBEDDING_PROVIDER:-gemini}" \
-        "GeminiApiKey=${GEMINI_API_KEY:-}" \
-        "GeminiModel=${GEMINI_MODEL:-gemini-flash-latest}" \
-        "GeminiEmbeddingModel=${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}" \
-        "DemoApiKey=${DEMO_API_KEY:-}"
+    --parameter-overrides "file://$PARAMS_FILE"
+rm -f "$PARAMS_FILE"
 
 out() {
     aws cloudformation describe-stacks --stack-name "$STACK" \
@@ -114,7 +128,7 @@ SITE_URL=$(out SiteUrl)
 
 echo "==> Building and uploading the frontend"
 cd "$ROOT/frontend"
-[ -d node_modules ] || npm ci
+if [ ! -d node_modules ] || [ package-lock.json -nt node_modules ]; then npm ci; fi
 VITE_API_BASE="${FUNCTION_URL%/}" VITE_DEMO_API_KEY="${DEMO_API_KEY:-}" npm run build
 aws s3 sync dist/ "s3://$SITE_BUCKET" --delete
 aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths '/*' >/dev/null

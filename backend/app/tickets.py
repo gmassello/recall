@@ -12,6 +12,7 @@ TICKET_COLUMNS = """
 
 OPEN_SQL_FILTER = "status != 'resolved'"
 QUEUE_LIMIT = 100
+UPDATABLE_COLUMNS = {"title", "description", "service", "severity", "status"}
 
 TEMPLATES = [
     ("hardware-pc", "the laptop does not turn on and the charging led stays off", "critical"),
@@ -158,6 +159,10 @@ class MockTicketSource:
     def update(self, ticket_id: str, changes: dict) -> dict | None:
         if not changes:
             return self.get(ticket_id)
+
+        unknown = set(changes) - UPDATABLE_COLUMNS
+        if unknown:
+            raise ValueError(f"Unknown ticket columns: {', '.join(sorted(unknown))}")
 
         sets = ", ".join(f"{field} = %s" for field in changes)
         return fetch_one(

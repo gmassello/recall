@@ -97,14 +97,15 @@ class GeminiProvider:
             return Turn()
         candidate = candidates[0]
         turn = Turn(truncated=candidate.finish_reason == types.FinishReason.MAX_TOKENS)
-        for part in candidate.content.parts or []:
+        parts = candidate.content.parts if candidate.content else None
+        for part in parts or []:
             if part.text:
                 turn.text += part.text
             elif part.function_call:
                 call = part.function_call
                 turn.tool_uses.append(
                     ToolUse(
-                        id=call.name,
+                        id=f"{call.name}:{len(turn.tool_uses)}",
                         name=call.name,
                         args=dict(call.args or {}),
                         signature=part.thought_signature,

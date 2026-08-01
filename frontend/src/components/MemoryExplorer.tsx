@@ -80,6 +80,7 @@ export default function MemoryExplorer() {
       <div className="section-header">
         <h2>Incident memory</h2>
         <input
+          aria-label="Filter by service"
           placeholder="Filter by service..."
           value={service}
           onChange={(e) => setService(e.target.value)}
@@ -145,6 +146,7 @@ export default function MemoryExplorer() {
                           setEditingId(null)
                           run(reload)
                         }}
+                        onPartial={() => run(reload)}
                       />
                     </td>
                   </tr>
@@ -162,9 +164,10 @@ interface EditFormProps {
   incident: Incident
   others: Incident[]
   onSaved: () => void
+  onPartial: () => void
 }
 
-function EditForm({ incident, others, onSaved }: EditFormProps) {
+function EditForm({ incident, others, onSaved, onPartial }: EditFormProps) {
   const [draft, setDraft] = useState<Draft>(() => draftOf(incident))
   const [supersededBy, setSupersededBy] = useState('')
   const { busy, error, run } = useAsync()
@@ -179,7 +182,12 @@ function EditForm({ incident, others, onSaved }: EditFormProps) {
         await updateIncident(incident.id, changes)
       }
       if (supersededBy) {
-        await supersedeIncident(incident.id, supersededBy)
+        try {
+          await supersedeIncident(incident.id, supersededBy)
+        } catch (e) {
+          onPartial()
+          throw e
+        }
       }
       onSaved()
     })

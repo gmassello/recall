@@ -26,7 +26,8 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers = API_KEY ? { ...init?.headers, 'X-API-Key': API_KEY } : init?.headers
+  const headers = new Headers(init?.headers)
+  if (API_KEY) headers.set('X-API-Key', API_KEY)
   const res = await fetch(`${BASE}${path}`, { ...init, headers })
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`

@@ -1,21 +1,22 @@
 import os
 
 from app.providers import bedrock
-from app.providers.bedrock import (
-    ACCESS_KEY_ENV,
-    BEARER_TOKEN_ENV,
-    SECRET_KEY_ENV,
-    SESSION_TOKEN_ENV,
-)
+from app.providers.bedrock import BEARER_TOKEN_ENV
 
 
 def _without_a_real_client(monkeypatch):
     monkeypatch.setattr(bedrock.boto3, "client", lambda *a, **kw: object())
 
 
-def _without_credentials_in_the_environment(monkeypatch):
-    for variable in (ACCESS_KEY_ENV, SECRET_KEY_ENV, SESSION_TOKEN_ENV):
-        monkeypatch.delenv(variable, raising=False)
+def _capturing_the_client(monkeypatch):
+    captured: dict = {}
+
+    def fake_client(*args, **kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(bedrock.boto3, "client", fake_client)
+    return captured
 
 
 def _credentials_in_the_env_file(monkeypatch, key="", secret="", token=""):
@@ -54,47 +55,43 @@ def test_without_a_configured_key_the_environment_is_left_alone(monkeypatch):
     assert BEARER_TOKEN_ENV not in os.environ
 
 
-def test_the_credentials_from_the_env_file_reach_the_variables_boto3_reads(monkeypatch):
-    _without_a_real_client(monkeypatch)
-    _without_credentials_in_the_environment(monkeypatch)
+def test_the_credentials_from_the_env_file_reach_the_client_explicitly(monkeypatch):
+    captured = _capturing_the_client(monkeypatch)
     _credentials_in_the_env_file(monkeypatch, key="AKIAfile", secret="secret-file")
 
     bedrock._client()
 
-    assert os.environ[ACCESS_KEY_ENV] == "AKIAfile"
-    assert os.environ[SECRET_KEY_ENV] == "secret-file"
-    assert SESSION_TOKEN_ENV not in os.environ
+    assert captured["aws_access_key_id"] == "AKIAfile"
+    assert captured["aws_secret_access_key"] == "secret-file"
+    assert "aws_session_token" not in captured
 
 
 def test_temporary_credentials_also_carry_the_session_token(monkeypatch):
-    _without_a_real_client(monkeypatch)
-    _without_credentials_in_the_environment(monkeypatch)
+    captured = _capturing_the_client(monkeypatch)
     _credentials_in_the_env_file(
         monkeypatch, key="ASIAfile", secret="secret-file", token="token-file"
     )
 
     bedrock._client()
 
-    assert os.environ[SESSION_TOKEN_ENV] == "token-file"
+    assert captured["aws_session_token"] == "token-file"
 
 
-def test_the_credentials_in_the_environment_beat_the_env_file(monkeypatch):
-    _without_a_real_client(monkeypatch)
-    _without_credentials_in_the_environment(monkeypatch)
-    monkeypatch.setenv(ACCESS_KEY_ENV, "AKIAshell")
+def test_the_env_file_credentials_beat_the_ambient_environment(monkeypatch):
+    captured = _capturing_the_client(monkeypatch)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAshell")
     _credentials_in_the_env_file(monkeypatch, key="AKIAfile", secret="secret-file")
 
     bedrock._client()
 
-    assert os.environ[ACCESS_KEY_ENV] == "AKIAshell"
+    assert captured["aws_access_key_id"] == "AKIAfile"
 
 
-def test_half_a_credential_pair_leaves_the_environment_alone(monkeypatch):
-    _without_a_real_client(monkeypatch)
-    _without_credentials_in_the_environment(monkeypatch)
+def test_half_a_credential_pair_is_not_sent(monkeypatch):
+    captured = _capturing_the_client(monkeypatch)
     _credentials_in_the_env_file(monkeypatch, key="AKIAfile")
 
     bedrock._client()
 
-    assert ACCESS_KEY_ENV not in os.environ
-    assert SECRET_KEY_ENV not in os.environ
+    assert "aws_access_key_id" not in captured
+    assert "aws_secret_access_key" not in captured

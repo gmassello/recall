@@ -32,5 +32,18 @@ def test_lower_distance_wins_all_else_being_equal():
     assert rank_score(0.10, 0.0, NOW) < rank_score(0.20, 0.0, NOW)
 
 
-def test_thumbs_down_weighs_more_than_thumbs_up():
+def test_thumbs_down_weighs_more_than_thumbs_up(monkeypatch):
+    from app import memory
+
+    deltas: list[float] = []
+    monkeypatch.setattr(
+        memory, "fetch_one", lambda sql, params: deltas.append(params[0]) or {}
+    )
+
+    memory.apply_feedback("abc", helpful=True)
+    memory.apply_feedback("abc", helpful=False)
+
+    up, down = deltas
+    assert down < 0 < up
+    assert abs(down) > abs(up)
     assert settings.feedback_down > settings.feedback_up

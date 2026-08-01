@@ -202,7 +202,14 @@ export default function IncidentView({ ticket: initial, onBack }: { ticket: Tick
             <p>
               <strong>Confidence:</strong> {(result.diagnosis.confidence * 100).toFixed(0)}%
             </p>
-            <div className="confidence-bar">
+            <div
+              className="confidence-bar"
+              role="progressbar"
+              aria-label="Diagnosis confidence"
+              aria-valuenow={Math.round(result.diagnosis.confidence * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
               <div style={{ width: `${result.diagnosis.confidence * 100}%` }} />
             </div>
           </div>

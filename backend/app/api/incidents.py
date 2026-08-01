@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app import memory
+from app import diagnoses, memory
 from app.api.deps import TICKET_ALREADY_RESOLVED, get_ticket_or_404, require_api_key
 from app.models import (
     FeedbackRequest,
@@ -11,6 +11,8 @@ from app.models import (
     ResolveResponse,
 )
 from app.postmortem import write_postmortem
+
+FEEDBACK_NOT_CITED = "Feedback is only accepted for the incident cited by this ticket's diagnosis"
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 protected = [Depends(require_api_key)]
@@ -28,6 +30,10 @@ def resolve(ticket_id: UUID, body: ResolveRequest) -> ResolveResponse:
 @router.post("/{ticket_id}/feedback", response_model=FeedbackResponse, dependencies=protected)
 def feedback(ticket_id: UUID, body: FeedbackRequest) -> dict:
     get_ticket_or_404(str(ticket_id))
+    saved = diagnoses.get(str(ticket_id))
+    cited = saved.most_relevant_incident.id if saved and saved.most_relevant_incident else None
+    if cited != str(body.incident_id):
+        raise HTTPException(status_code=422, detail=FEEDBACK_NOT_CITED)
     updated = memory.apply_feedback(str(body.incident_id), body.helpful)
     if updated is None:
         raise HTTPException(status_code=404, detail="Incident not found")

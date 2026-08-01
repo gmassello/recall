@@ -79,11 +79,13 @@ Resources:
           GEMINI_MODEL: !Ref GeminiModel
           GEMINI_EMBEDDING_MODEL: !Ref GeminiEmbeddingModel
           DEMO_API_KEY: !Ref DemoApiKey
-          CORS_ORIGINS: !Sub 'https://${SiteDistribution.DomainName},http://localhost:5173'
+          CORS_ORIGINS: !Sub 'https://${SiteDistribution.DomainName}'
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: RESPONSE_STREAM
       PermissionsBoundary: !Sub 'arn:aws:iam::${AWS::AccountId}:policy/${AWS::StackName}-permissions-boundary'
+      LoggingConfig:
+        LogGroup: !Ref ApiLogGroup
       Policies:
         - Version: '2012-10-17'
           Statement:
@@ -93,6 +95,12 @@ Resources:
                 - !Sub arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*
                 - arn:aws:bedrock:*::foundation-model/anthropic.claude-*
                 - arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-*
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-api'
+      RetentionInDays: 30
 
   SiteBucket:
     Type: AWS::S3::Bucket

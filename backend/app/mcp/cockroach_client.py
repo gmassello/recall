@@ -7,7 +7,7 @@ from app.config import settings
 
 log = logging.getLogger(__name__)
 
-_sql_tool: tuple[str, str] | None = None
+_sql_tool: tuple[str, str, bool] | None = None
 
 
 def is_configured() -> bool:
