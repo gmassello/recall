@@ -17,9 +17,10 @@ beat	gap	caption	speak
 # Lines starting with # are ignored. Keep the header row as-is.
 # ---------------------------------------------------------------------------
 
-0:00	0.8	On-call teams solve the same incident twice
+0:00	0.8	Recall — an on-call agent whose memory is CockroachDB	Recall. An on-call agent whose memory is CockroachDB.
+0:00	0.5	Built for the CockroachDB × AWS Hackathon	Built for the CockroachDB and AWS hackathon: Build with Agentic Memory.
+0:00	0.6	On-call teams solve the same incident twice
 0:00	0.35	Last quarter's fix is buried in a closed ticket
-0:00	0.5	Recall is an agent whose memory is CockroachDB
 
 0:12	1.2	This is the memory: 25 resolved incidents	This is the memory. Twenty five resolved incidents.
 0:12	0.35	Each embedded as a 1,024-dimension vector	Each one embedded as a one thousand twenty four dimension vector.

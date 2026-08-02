@@ -10,7 +10,7 @@ resolved incident improves the diagnosis of the next one.
 | | |
 |---|---|
 | **Live demo** | https://d2n13wfb8jv9v.cloudfront.net |
-| **Video** | _pending_ |
+| **Video** | https://youtu.be/L3CkZax88dU |
 | **Repo** | https://github.com/gmassello/recall |
 | **License** | [MIT](LICENSE) |
 | **Reference docs** | [`docs/recall-DOCUMENTATION.md`](docs/recall-DOCUMENTATION.md) |
@@ -29,7 +29,7 @@ resolved incident improves the diagnosis of the next one.
 | Project newly created during the submission period | ✅ | First commit 2026-07-19; the period opened 2026-06-30. No prior history |
 | README with dependencies and setup instructions | ✅ | [`README.md`](README.md) |
 | Functional demo URL, free and unrestricted | ✅ | CloudFront link above; `GET /health` reports MCP status |
-| Demo video under 3 minutes | ⬜ | Script in `docs/recall-DOCUMENTATION.md` §11 |
+| Demo video under 3 minutes | ✅ | https://youtu.be/L3CkZax88dU — 2:57, unlisted, burned-in English captions |
 | Identify which CockroachDB tools were used | ✅ | This file |
 | Identify which AWS services were used | ✅ | This file |
 | Architecture diagram (optional) | ✅ | `README.md` and `docs/recall-DOCUMENTATION.md` §3 |
@@ -138,7 +138,7 @@ to operate for a public demo. Switching to Bedrock is two variables — see
 | Architecture diagram | ✅ | `docs/recall-DOCUMENTATION.md` §3 |
 | Tool identification (this file) | ✅ | `SUBMISSION.md` |
 | Destructive endpoints protected | ✅ | `backend/app/api/deps.py`, `tests/test_api_auth.py` |
-| Demo video < 3 min | ⬜ | Script in §11 |
+| Demo video < 3 min | ✅ | https://youtu.be/L3CkZax88dU — 2:57 |
 | Devpost form submitted | ⬜ | Deadline 2026-08-18, 5pm EDT |
 
 ---

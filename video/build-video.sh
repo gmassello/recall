@@ -25,6 +25,10 @@
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
+# The default homebrew ffmpeg 8 bottle ships without libass, so it has no
+# subtitles filter; the ffmpeg@7 keg does. Prefer it when present.
+[ -d /opt/homebrew/opt/ffmpeg@7/bin ] && PATH="/opt/homebrew/opt/ffmpeg@7/bin:$PATH"
+
 RAW="${1:-raw.mov}"
 cd "$(dirname "$0")"
 OUT="out"
@@ -44,8 +48,25 @@ START="${START:-0}"
 END="${END:-$(probe "$RAW")}"
 V=$(python3 -c "print(max(0.001, $END - $START))")
 
+# --- optional title slide over the first beat --------------------------------
+# SLIDE=out/slide.png shows a still for the first SLIDE_DUR seconds (default:
+# the length of beat 1 in out/timing.txt) and the recording covers the rest.
+# Pair it with a fit that skipped beat 1 (fit-to-audio --timing without it).
+SLIDE="${SLIDE:-}"
+SLIDE_DUR="${SLIDE_DUR:-12.7}"
+if [ -n "$SLIDE" ] && [ ! -f "$SLIDE" ]; then echo "ERROR: SLIDE '$SLIDE' not found."; exit 1; fi
+
+# --- optional outro slides ----------------------------------------------------
+# OUTRO="img:dur,img:dur,..." appends stills after the recording. The first
+# OUTRO_REPLACE seconds of them cover the tail of the narration (use it to put
+# tech slides over the closing beat); anything beyond extends the video with
+# padded silence. Trim the recording accordingly with END=.
+OUTRO="${OUTRO:-}"
+OUTRO_REPLACE="${OUTRO_REPLACE:-0}"
+
 # --- fit the video to the audio ---------------------------------------------
-RATIO=$(python3 -c "print(f'{$V/$A:.6f}')")
+SLIDE_PART=$([ -n "$SLIDE" ] && echo "$SLIDE_DUR" || echo 0)
+RATIO=$(python3 -c "print(f'{$V/($A-$SLIDE_PART-$OUTRO_REPLACE):.6f}')")
 if [ "${NOFIT:-0}" = "1" ]; then
   RATIO=1.0
   echo "NOFIT=1 — leaving the video speed alone"
@@ -82,17 +103,49 @@ else
 fi
 
 # --- video: trim, fit, scale to 1080p, burn the subtitles --------------------
-STYLE="FontName=Helvetica Neue,Fontsize=${FONTSIZE},Bold=1,PrimaryColour=&H00FFFFFF,\
+# The newer ffmpeg filtergraph parser chokes on nested quotes: protect the
+# commas inside force_style with backslashes instead, and use a font name
+# without spaces.
+STYLE="FontName=Helvetica,Fontsize=${FONTSIZE},Bold=1,PrimaryColour=&H00FFFFFF,\
 BorderStyle=4,BackColour=&H33000000,Outline=0,Shadow=0,Alignment=2,MarginV=22"
+STYLE_ESC=${STYLE//,/\\,}
 
-ffmpeg -y -ss "$START" -to "$END" -i "$RAW" -i "$TRACK" \
-  -filter_complex "[0:v]setpts=PTS/${RATIO},fps=30,\
-scale=1920:1080:force_original_aspect_ratio=decrease,\
-pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,\
-subtitles='${SRT}':force_style='${STYLE}'[v]" \
-  -map "[v]" -map 1:a \
+FIT="scale=1920:1080:force_original_aspect_ratio=decrease,\
+pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1"
+
+INPUTS=(-ss "$START" -to "$END" -i "$RAW" -i "$TRACK")
+IDX=2 N=0 PRE="" CHAIN="" OUTRO_TOTAL=0
+
+if [ -n "$SLIDE" ]; then
+  INPUTS+=(-loop 1 -t "$SLIDE_DUR" -i "$SLIDE")
+  PRE+="[${IDX}:v]${FIT},fps=30[sl];"
+  CHAIN+="[sl]"; N=$((N+1)); IDX=$((IDX+1))
+fi
+
+PRE+="[0:v]setpts=PTS/${RATIO},fps=30,${FIT}[rec];"
+CHAIN+="[rec]"; N=$((N+1))
+
+if [ -n "$OUTRO" ]; then
+  i=0
+  for spec in ${OUTRO//,/ }; do
+    IMG="${spec%%:*}"; DUR="${spec##*:}"
+    [ -f "$IMG" ] || { echo "ERROR: OUTRO image '$IMG' not found."; exit 1; }
+    INPUTS+=(-loop 1 -t "$DUR" -i "$IMG")
+    PRE+="[${IDX}:v]${FIT},fps=30[o${i}];"
+    CHAIN+="[o${i}]"; N=$((N+1)); IDX=$((IDX+1)); i=$((i+1))
+    OUTRO_TOTAL=$(python3 -c "print($OUTRO_TOTAL + $DUR)")
+  done
+fi
+
+TOTAL=$(python3 -c "print($A + max(0.0, $OUTRO_TOTAL - $OUTRO_REPLACE))")
+printf 'output runs %.1f s including the outro\n' "$TOTAL"
+
+ffmpeg -y "${INPUTS[@]}" \
+  -filter_complex "${PRE}${CHAIN}concat=n=${N}:v=1:a=0,\
+subtitles=filename=${SRT}:force_style=${STYLE_ESC}[v];[1:a]apad[a]" \
+  -map "[v]" -map "[a]" -t "$TOTAL" \
   -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -movflags +faststart \
-  -c:a aac -b:a 192k -shortest \
+  -c:a aac -b:a 192k \
   "$FINAL"
 
 cp "$SRT" "$OUT/recall-demo.en.srt"

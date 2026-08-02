@@ -223,3 +223,7 @@ node_modules/
 
 # AWS deploy
 backend/.packaged.yaml
+
+# video recording artifacts - never commit takes or generated output
+video/out/
+video/*.mov

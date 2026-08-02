@@ -9,6 +9,7 @@ writing the postmortem back into that memory: every resolved incident improves
 the diagnosis of the next one.
 
 > **Live demo**: https://d2n13wfb8jv9v.cloudfront.net
+> **Demo video** (2:57): https://youtu.be/L3CkZax88dU
 > **Submission**: [`SUBMISSION.md`](SUBMISSION.md) — which CockroachDB tools and
 > AWS services this uses, and how.
 
