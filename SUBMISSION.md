@@ -23,12 +23,12 @@ resolved incident improves the diagnosis of the next one.
 |---|---|---|
 | Agentic app using CockroachDB as its memory layer | ✅ | `backend/app/agent/loop.py` runs the turn loop; `backend/app/memory.py` is the only layer that talks to the `incidents` table |
 | At least 2 CockroachDB tools | ✅ 3 of 4 | Managed MCP Server, Distributed Vector Indexing, `ccloud` CLI — detailed below |
-| At least 1 AWS service | ✅ 5 | Lambda, Function URL, S3, CloudFront, IAM/OIDC — detailed below |
+| At least 1 AWS service | ✅ 7 | Lambda, Function URL, S3, CloudFront, IAM/OIDC, CloudFormation/SAM, Bedrock — detailed below |
 | Public open-source repository | ✅ | https://github.com/gmassello/recall |
 | OSS license visible at the top of the repo | ✅ | [`LICENSE`](LICENSE), MIT |
 | Project newly created during the submission period | ✅ | First commit 2026-07-19; the period opened 2026-06-30. No prior history |
 | README with dependencies and setup instructions | ✅ | [`README.md`](README.md) |
-| Functional demo URL, free and unrestricted | ✅ | CloudFront link above; `GET /health` reports MCP status |
+| Functional demo URL, free and unrestricted | ✅ | CloudFront link above; `GET /health?probe=1` reports MCP status |
 | Demo video under 3 minutes | ✅ | https://youtu.be/L3CkZax88dU — 2:57, unlisted, burned-in English captions |
 | Identify which CockroachDB tools were used | ✅ | This file |
 | Identify which AWS services were used | ✅ | This file |
@@ -55,7 +55,8 @@ falls back to psycopg only when the MCP is unavailable.
 - That `via` travels all the way to the `EvidenceStep` of the API response and is
   painted in the frontend timeline: while the agent reasons, you can see which of
   its lookups went through the MCP.
-- `probe()` is exposed in `GET /health`, so the deployed app reports MCP health.
+- `probe()` is exposed in `GET /health?probe=1`, so the deployed app reports MCP
+  health on demand (the plain health check stays fast and dependency-free).
 - **Writes always go through psycopg** — a deliberate boundary, not an oversight.
 
 ### 2. Distributed Vector Indexing — the semantic memory itself
@@ -156,7 +157,7 @@ than useless.
 
 **Technical implementation.** The MCP read path is real and falls back cleanly.
 The agent loop is provider-agnostic at the dataclass level (`providers/base.py`),
-so Gemini, Bedrock and Anthropic are one environment variable apart. 89 unit tests
+so Gemini, Bedrock and Anthropic are one environment variable apart. 147 unit tests
 run with no database and no cloud credentials. `ruff` and `pytest` gate the deploy.
 
 **Real-world impact.** On-call knowledge dies in Slack threads and closed tickets.
@@ -179,11 +180,13 @@ what the tool is normally used for.
 
 - **`MockTicketSource`** is the only `TicketSource` implementation. Jira and
   PagerDuty are a `Protocol` away (`backend/app/tickets.py`), but not written.
-- **The Function URL is `AuthType: NONE`.** Reads and the agent loop are open on
-  purpose so judges can drive the demo without credentials; only the destructive
-  endpoints demand `X-API-Key`. And that key ships inside the JavaScript bundle,
-  because the memory explorer has to be able to edit and delete — so it stops
-  drive-by requests and crawlers, not anyone willing to open devtools. Real auth
+- **The Function URL is `AuthType: NONE`, with a shared-key layer on top.** Reads
+  are open; everything that costs money or mutates state — running the agent (plain
+  and SSE, where the key travels as a query parameter because `EventSource` cannot
+  send headers), seeding, resolving, feedback and every destructive endpoint —
+  demands `X-API-Key`. That key ships inside the JavaScript bundle on purpose, so
+  judges can drive the whole demo without credentials: it stops drive-by requests,
+  crawlers and casual cost abuse, not anyone willing to open devtools. Real auth
   here means a session in front of the app (Cognito, or an authorizer on the
   Function URL), which is worth doing the moment this stops being a demo.
 - **`docs/recall-DOCUMENTATION.md` §10** describes history ingestion and offline
